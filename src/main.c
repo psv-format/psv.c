@@ -162,7 +162,7 @@ void print_json() {
         for (int j = 0; j < num_headers; j++) {
             printf("\"%s\": \"%s\"", headers[j], data_rows[i * num_headers + j]);
             if (j < num_headers - 1) {
-                printf(",");
+                printf(", ");
             }
         }
         printf("}");
