@@ -27,7 +27,7 @@ Here's a table:
 | Name    | Age | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
+| Bob     | 32.4  | San Francisco|
 | Bob     | 32  | 
 | Charlie | 19  | London       |
 
