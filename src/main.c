@@ -299,10 +299,14 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
     return table;
 }
 
-void print_table_rows_json(Table *table, FILE *output) {
-    fprintf(output, "[\n");
+void print_table_rows_json(Table *table, FILE *output, unsigned int tableCount) {
+    if (tableCount != 0) {
+        fprintf(output, "   ,\n");
+    }
+
+    fprintf(output, "   [\n");
     for (int i = 0; i < table->num_data_rows; i++) {
-        fprintf(output, "{");
+        fprintf(output, "       {");
         for (int j = 0; j < table->num_headers; j++) {
             const char *key=table->headers[j];
             const char *data=table->data_rows[i][j];
@@ -334,7 +338,7 @@ void print_table_rows_json(Table *table, FILE *output) {
             fprintf(output, "\n");
         }
     }
-    fprintf(output, "]\n");
+    fprintf(output, "   ]\n");
 }
 
 void print_table_json(Table *table, FILE *output, unsigned int tableCount) {
@@ -400,7 +404,8 @@ static void usage(int code) {
         "psv reads Markdown documents from the input files or stdin and converts them to JSON format.\n\n"
         "Options:\n"
         "  -o, --output <file>     output JSON to the specified file\n"
-        "  --id <id>               specify the ID of a single table to output\n"
+        "  -i, --id <id>           specify the ID of a single table to output\n"
+        "  -c, --compact           output only the rows\n"
         "  -h, --help              display this help message and exit\n"
         "  -v, --version           output version information and exit\n\n"
         "For more information, use '%s --help'.\n",
@@ -410,25 +415,35 @@ static void usage(int code) {
 
 int main(int argc, char* argv[]) {
     progname = argv[0];
-        int opt;
+    
+    bool single_table = false;
+    bool compact_mode = false;
+
+    int opt;
     char* id = NULL;
     char* output_file = NULL;
 
     static struct option long_options[] = {
-        {"output", required_argument, 0, 'o'},
-        {"id",     required_argument, 0, 'i'},
-        {"help",   no_argument,       0, 'h'},
-        {"version",no_argument,       0, 'v'},
+        {"output",  required_argument, 0, 'o'},
+        {"id",      required_argument, 0, 'i'},
+        {"compact", no_argument,       0, 'c'},
+        {"help",    no_argument,       0, 'h'},
+        {"version", no_argument,       0, 'v'},
         {0, 0, 0, 0}
     };
 
-    while ((opt = getopt_long(argc, argv, "o:i:hv", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "o:i:chv", long_options, NULL)) != -1) {
         switch (opt) {
             case 'o':
                 output_file = optarg;
                 break;
             case 'i':
+                single_table = true;
                 id = optarg;
+                break;
+            case 'c':
+                // Compact Output Mode
+                compact_mode = true;
                 break;
             case 'h':
                 // Help / Usage
@@ -460,38 +475,78 @@ int main(int argc, char* argv[]) {
 
     // Process input files
     unsigned int tableCount = 0;
+    bool foundSingleTable = false;
     if (optind < argc) {
-        fprintf(output_stream, "[\n");
-        for (int i = optind; i < argc; i++) {
+        if (!single_table) {
+            fprintf(output_stream, "[\n");
+        }
+        for (int i = optind; i < argc && !foundSingleTable; i++) {
             FILE* input_file = fopen(argv[i], "r");
             if (!input_file) {
                 fprintf(stderr, "Error: Cannot open file '%s' for reading.\n", argv[i]);
                 exit(1);
             }
 
-
             Table *table = NULL;
-            while ((table = parse_table(input_file, tableCount)) != NULL) {
-                print_table_json(table, output_stream, tableCount);
+            while ((table = parse_table(input_file, tableCount)) != NULL && !foundSingleTable) {
+                if (single_table) {
+                    if (strcmp(table->id, id) == 0)
+                    {
+                        if (compact_mode) {
+                            print_table_rows_json(table, output_stream, 0);
+                        } else {            
+                            print_table_json(table, output_stream, 0);
+                        }
+                        foundSingleTable = true; // Set flag to exit loop
+                    }
+                } else {
+                    if (compact_mode) {
+                        print_table_rows_json(table, output_stream, tableCount);
+                    } else {            
+                        print_table_json(table, output_stream, tableCount);
+                    }
+                    tableCount++;
+                }
                 free_table(table);
                 free(table);
-                tableCount++;
             }
 
             fclose(input_file);
         }
-        fprintf(output_stream, "]\n");
+        if (!single_table) {
+            fprintf(output_stream, "]\n");
+        }
     } else {
         // No input files provided, read from stdin
         Table *table = NULL;
-        fprintf(output_stream, "[\n");
-        while ((table = parse_table(stdin, tableCount)) != NULL) {
-            print_table_json(table, output_stream, tableCount);
+        if (!single_table) {
+            fprintf(output_stream, "[\n");
+        }
+        while ((table = parse_table(stdin, tableCount)) != NULL && !foundSingleTable) {
+            if (single_table) {
+                if (strcmp(table->id, id) == 0)
+                {
+                    if (compact_mode) {
+                        print_table_rows_json(table, output_stream, 0);
+                    } else {            
+                        print_table_json(table, output_stream, 0);
+                    }
+                    foundSingleTable = true; // Set flag to exit loop
+                }
+            } else {
+                if (compact_mode) {
+                    print_table_rows_json(table, output_stream, tableCount);
+                } else {            
+                    print_table_json(table, output_stream, tableCount);
+                }
+                tableCount++;
+            }
             free_table(table);
             free(table);
-            tableCount++;
         }
-        fprintf(output_stream, "]\n");
+        if (!single_table) {
+            fprintf(output_stream, "]\n");
+        }
     }
 
     if (output_file) {

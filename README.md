@@ -1,22 +1,27 @@
 # psv
 
-Quickstart Tip: Just run `./bootstrap.sh && ./build.sh` to build.
+## Overview
+
+This is a reference implementation of a Markdown to JSON converter, designed specifically for parsing Markdown tables into JSON objects. It allows for easy conversion of Markdown documents containing tables into structured JSON data.
+
+Ultimately the aim is to inform on what the draft psv standard should look like in <https://github.com/psv-format/psv-format.github.io>
+
+## Quickstart
+
+To build the program, simply run:
+
+```bash
+./bootstrap.sh && ./build.sh
+```
+
 Your executable will be located at `./psv`.
-Use `./clean.sh\ && ./bootstrap.sh` to reset to a clean slate.
 
-<!-- For now, we don't have test yet here
+### Usage
 
-Quickstart Tip: Just run `./bootstrap.sh && ./build.sh && ./test.sh` to build and test.
-Your executable will be located at `./psv`.
-Use `./clean.sh\ && ./bootstrap.sh` to reset to a clean slate.
-
--->
-
-To try this program out use:
+To parse Markdown tables from standard input:
 
 ```bash
 make && ./psv << 'HEREDOC'
-{#table1 description="Hello World 1"}
 | Name    | Age | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
@@ -24,7 +29,7 @@ make && ./psv << 'HEREDOC'
 | Bob     | 32  | 
 | Charlie | 19  | London       |
 
-{#table2 description="Hello World 2"}
+{#test2}
 | Name    | Age | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
@@ -34,31 +39,133 @@ make && ./psv << 'HEREDOC'
 HEREDOC
 ```
 
+The above command would give a response that may look like below
+
+```json
+[
+    {
+        "id": "table1",
+        "headers": ["Name", "Age", "City"],
+        "rows": [
+            {"Name": "Alice", "Age": 25, "City": "New York"},
+            {"Name": "Bob", "Age": 32.4, "City": "San Francisco"},
+            {"Name": "Bob", "Age": 32},
+            {"Name": "Charlie", "Age": 19, "City": "London"}
+        ]
+    }
+    ,
+    {
+        "id": "test2",
+        "headers": ["Name", "Age", "City"],
+        "rows": [
+            {"Name": "Alice", "Age": 25, "City": "New York"},
+            {"Name": "Bob", "Age": 32, "City": "San Francisco"},
+            {"Name": "Bob", "Age": 32, "City": "Melbourne"},
+            {"Name": "Charlie", "Age": 19, "City": "London"}
+        ]
+    }
+]
+```
+
+There is also a compact mode
+
+
+```bash
+make && ./psv -c << 'HEREDOC'
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32.4  | San Francisco|
+| Bob     | 32  | 
+| Charlie | 19  | London       |
+
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+HEREDOC
+```
+
+which has a more compact representation
+
+```json
+[
+   [
+       {"Name": "Alice", "Age": 25, "City": "New York"},
+       {"Name": "Bob", "Age": 32.4, "City": "San Francisco"},
+       {"Name": "Bob", "Age": 32},
+       {"Name": "Charlie", "Age": 19, "City": "London"}
+   ]
+   ,
+   [
+       {"Name": "Alice", "Age": 25, "City": "New York"},
+       {"Name": "Bob", "Age": 32, "City": "San Francisco"},
+       {"Name": "Bob", "Age": 32, "City": "Melbourne"},
+       {"Name": "Charlie", "Age": 19, "City": "London"}
+   ]
+]
+```
+
+Finally you can select table by ID
+
+```bash
+make && ./psv --id dog -c << 'HEREDOC'
+{#cat}
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32.4  | San Francisco|
+| Bob     | 32  | 
+| Charlie | 19  | London       |
+
+{#dog}
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+HEREDOC
+```
+
+Which would output just the table marked as dog
+
+```json
+   [
+       {"Name": "Alice", "Age": 25, "City": "New York"},
+       {"Name": "Bob", "Age": 32, "City": "San Francisco"},
+       {"Name": "Bob", "Age": 32, "City": "Melbourne"},
+       {"Name": "Charlie", "Age": 19, "City": "London"}
+   ]
+```
+
+To specify an output file:
 
 ```bash
 make && ./psv -o test.json << 'HEREDOC'
-{#table1 description="Hello World 1"}
-| Name    | Age | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32.4  | San Francisco|
-| Bob     | 32  | 
-| Charlie | 19  | London       |
-
-{#table2 description="Hello World 2"}
-| Name    | Age | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+...
 HEREDOC
 ```
 
+To parse Markdown tables from a file:
+
 ```bash
 make && ./psv -o test.json testdoc.md
-make && ./psv testdoc.md
 ```
+
+### Using with jq
+
+You can pipe results from psv into jq
+
+```bash
+make && ./psv testdoc.md testdoc.md testdoc.md | jq
+```
+
+## Dev Tips:
+
+### Memory Leak Detection (using Valgrind)
 
 ```bash
 make && valgrind --leak-check=full \
@@ -69,25 +176,12 @@ make && valgrind --leak-check=full \
          ./psv --output test.json testdoc.md testdoc.md
 ```
 
+## Design Considerations
 
-```json
-[
-    {
-        "id": "table1",
-        "description": "This is the first table",
-        "headers": ["Name", "Age", "Country"],
-        "rows": [
-            {"Name": "Alice", "Age": 25, "City": "New York"},
-            {"Name": "Bob", "Age": 32.4, "City": "San Francisco"},
-            {"Name": "Bob", "Age": 32},
-            {"Name": "Charlie", "Age": 19, "City": "London"}
-        ]
-    }
-]
-```
+- **Integration with Existing Tools**: psv is intentionally designed to be simple and focused, serving as a specialized tool for Markdown table conversion. While jq offers extensive JSON manipulation capabilities, psv complements it by providing a straightforward solution specifically tailored for Markdown tables. This is by outputting json which jq can more easily parse.
 
+- **Output Format**: The output JSON format is designed to mirror the structure of Markdown tables, with each table represented as a JSON object containing an ID, headers, and rows. This format aims to provide a clear and intuitive mapping from Markdown to JSON, making it easy to work with the converted data programmatically.
 
----
-
+- **Partial Parsing of Consistent Attribute Syntax**: The decision to focus on parsing the `#id` attribute only, rather than the entire consistent attribute syntax, was made to simplify the implementation and streamline the conversion process for this MVP. Later on we can add extra feature.
 
 
