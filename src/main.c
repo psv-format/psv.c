@@ -134,7 +134,7 @@ void parse_consistent_attribute_syntax_id(const char *buffer, Table *table) {
 }
 
 // Grab A Table From A Stream Input
-Table *parse_table(FILE *input) {
+Table *parse_table(FILE *input, unsigned int tableCount) {
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -202,6 +202,9 @@ Table *parse_table(FILE *input) {
                 // Check if at least one header field is detected
                 if (table->num_headers > 0) {
                     state = POTENTIAL_HEADER;
+                    if (table->id[0] == '\0') {
+                        snprintf(table->id, TABLE_ID_MAX, "table%d", tableCount+1);
+                    }
                 } else {
                     free_table(table);
                 }
@@ -334,7 +337,11 @@ void print_table_rows_json(Table *table, FILE *output) {
     fprintf(output, "]\n");
 }
 
-void print_table_json(Table *table, FILE *output) {
+void print_table_json(Table *table, FILE *output, unsigned int tableCount) {
+    if (tableCount != 0) {
+        fprintf(output, "    ,\n");
+    }
+
     fprintf(output, "    {\n");
     fprintf(output, "        \"id\": \"%s\",\n", table->id);
     fprintf(output, "        \"headers\": [");
@@ -452,7 +459,9 @@ int main(int argc, char* argv[]) {
     }
 
     // Process input files
+    unsigned int tableCount = 0;
     if (optind < argc) {
+        fprintf(output_stream, "[\n");
         for (int i = optind; i < argc; i++) {
             FILE* input_file = fopen(argv[i], "r");
             if (!input_file) {
@@ -460,25 +469,29 @@ int main(int argc, char* argv[]) {
                 exit(1);
             }
 
-            printf("::%s::\n", argv[i]);
 
             Table *table = NULL;
-            while ((table = parse_table(input_file)) != NULL) {
-                print_table_json(table, output_stream);
+            while ((table = parse_table(input_file, tableCount)) != NULL) {
+                print_table_json(table, output_stream, tableCount);
                 free_table(table);
                 free(table);
+                tableCount++;
             }
 
             fclose(input_file);
         }
+        fprintf(output_stream, "]\n");
     } else {
         // No input files provided, read from stdin
         Table *table = NULL;
-        while ((table = parse_table(stdin)) != NULL) {
-            print_table_json(table, output_stream);
+        fprintf(output_stream, "[\n");
+        while ((table = parse_table(stdin, tableCount)) != NULL) {
+            print_table_json(table, output_stream, tableCount);
             free_table(table);
             free(table);
+            tableCount++;
         }
+        fprintf(output_stream, "]\n");
     }
 
     if (output_file) {
