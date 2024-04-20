@@ -1,8 +1,8 @@
 bin_PROGRAMS = psv
-psv_SOURCES = src/main.c src/hello.h
+psv_SOURCES = src/main.c
 
 check_PROGRAMS = unit_test
-unit_test_SOURCES = tests/unit_test.c src/hello.h
+unit_test_SOURCES = tests/unit_test.c
 
 # ACLOCAL_AMFLAGS specifies additional flags for aclocal.
 # -I m4: Include the m4 directory for additional macros.
