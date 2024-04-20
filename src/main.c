@@ -36,11 +36,14 @@ char *trim_whitespace(char *str) {
 }
 
 void free_table(Table *table) {
+    // Free Tabular Header
     for (int i = 0; i < table->num_headers; i++) {
         free(table->headers[i]);
     }
     free(table->headers);
+    table->headers = NULL;
 
+    // Free Tabular Data
     for (int i = 0; i < table->num_data_rows; i++) {
         for (int j = 0; j < table->num_headers; j++) {
             free(table->data_rows[i][j]);
@@ -48,6 +51,11 @@ void free_table(Table *table) {
         free(table->data_rows[i]);
     }
     free(table->data_rows);
+    table->data_rows = NULL;
+
+    // Reset Metadata
+    table->num_data_rows = 0;
+    table->num_headers = 0;
 }
 
 // Function to check if a string represents a valid JSON number
@@ -78,6 +86,7 @@ Table *parse_table(FILE *input) {
             if (line[0] == '|') {
                 table->num_headers = 0;
                 table->num_data_rows = 0;
+
                 // Trim '|' on right hand side
                 for (int i = read - 1; i > 0; i--) {
                     if (line[i] == '|') {
@@ -85,6 +94,7 @@ Table *parse_table(FILE *input) {
                         break;
                     }
                 }
+
                 // Split and Cache header
                 char *token = strtok(line + 1, "|");
                 while (token != NULL) {
@@ -94,9 +104,12 @@ Table *parse_table(FILE *input) {
                     table->num_headers++;
                     token = strtok(NULL, "|");
                 }
-                // Check if there are headers
+
+                // Check if at least one header field is detected
                 if (table->num_headers > 0) {
                     state = POTENTIAL_HEADER;
+                } else {
+                    free_table(table);
                 }
             }
         } else if (state == POTENTIAL_HEADER) {
@@ -109,6 +122,7 @@ Table *parse_table(FILE *input) {
                         break;
                     }
                 }
+
                 // Split and check header separators
                 int num_header_separators = 0;
                 char *token = strtok(line + 1, "|");
@@ -118,16 +132,16 @@ Table *parse_table(FILE *input) {
                     }
                     token = strtok(NULL, "|");
                 }
+
+                // Check if possible table signature is valid
                 if (table->num_headers == num_header_separators) {
                     // It's most likely a markdown table
                     // We can now safely start parsing the data rows
                     state = DATA;
                 } else {
                     // Mismatch with headers, free the allocated memory
-                    free_table(table);
-                    table->num_headers = 0;
-                    table->headers = NULL;
                     state = SCANNING;
+                    free_table(table);
                 }
             }
         } else if (state == DATA) {
@@ -156,6 +170,7 @@ Table *parse_table(FILE *input) {
                 // Keep track of data row
                 table->num_data_rows++;
             } else {
+                // End of Table detected
                 break;
             }
         }
