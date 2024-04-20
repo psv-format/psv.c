@@ -7,10 +7,9 @@
 
 #include "config.h"
 
-
-#define TABLE_ID_MAX_SIZE 255
-
 static const char* progname;
+
+#define TABLE_ID_MAX 255
 
 typedef enum {
     SCANNING,
@@ -19,8 +18,7 @@ typedef enum {
 } State;
 
 typedef struct {
-    char id[TABLE_ID_MAX_SIZE];
-    char *attribute; ///< Consistent attribute syntax https://talk.commonmark.org/t/consistent-attribute-syntax/272
+    char id[TABLE_ID_MAX];
     int num_headers;
     char **headers;
     int num_data_rows;
@@ -57,13 +55,32 @@ bool is_boolean(const char *value) {
     return strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
 }
 
+// Parse Consistent Attribute Syntax For ID field
+char* parse_consistent_attribute_id(const char *attribute) {
+    const char *start = strchr(attribute, '#');
+    if (!start) {
+        // No ID found
+        return NULL;
+    }
+    start++; // Move past the '#' character
+    const char *end = strchr(start, ' '); // ID ends with a space or end of string
+    if (!end) {
+        end = attribute + strlen(attribute); // If no space found, ID extends till end of string
+    }
+    int id_length = end - start;
+    char *id = (char *)malloc((id_length + 1) * sizeof(char));
+    if (!id) {
+        // Memory allocation failed
+        return NULL;
+    }
+    strncpy(id, start, id_length);
+    id[id_length] = '\0'; // Null-terminate the string
+    return id;
+}
+
 // Free Memory Allocation For A Table
 void free_table(Table *table) {
-    // Free Consistent Attribute Syntax
-    if (table->attribute) {
-        free(table->attribute);
-        table->attribute = NULL;
-    }
+    // Free Table ID
 
     // Free Tabular Header
     if (table->headers) {
@@ -94,6 +111,28 @@ void free_table(Table *table) {
     table->num_headers = 0;
 }
 
+void parse_consistent_attribute_syntax_id(const char *buffer, Table *table) {
+    while (*buffer != '\0' && *buffer != '#') {
+        if (*buffer == ' ') {
+            buffer++;
+        } else {
+            // ID must be in front of all other class or key:value
+            return;
+        }
+    }
+    if (*buffer == '#') {
+        // ID found
+        buffer++; // Move past the '#' character
+        // Copy the ID until a space or '}' is encountered
+        int i = 0;
+        while ((i < TABLE_ID_MAX) && (*buffer != '\0') && *buffer != ' ' && *buffer != '}') {
+            table->id[i] = *buffer++;
+            i++;
+        }
+        table->id[i] = '\0'; // Null-terminate the ID
+    }
+}
+
 // Grab A Table From A Stream Input
 Table *parse_table(FILE *input) {
     char *line = NULL;
@@ -101,15 +140,13 @@ Table *parse_table(FILE *input) {
     ssize_t read;
     State state = SCANNING;
     Table *table = malloc(sizeof(Table));
-    table->attribute = NULL;
-    table->num_headers = 0;
-    table->headers = NULL;
-    table->num_data_rows = 0;
-    table->data_rows = NULL;
+    *table = (Table){0};
 
     while ((read = getline(&line, &len, input)) != -1) {
         if (state == SCANNING) {
             if (line[0] == '{') {
+                // Parse Consistent attribute syntax https://talk.commonmark.org/t/consistent-attribute-syntax/272
+
                 // Check for metadata
                 bool closing_bracket = false;
 
@@ -128,8 +165,18 @@ Table *parse_table(FILE *input) {
                     continue;
                 }
 
-                table->attribute = malloc((str_line + 1) * sizeof(char));
-                strcpy(table->attribute, trim_whitespace(line + 1));
+                // Parse table ID anchor
+                // TODO: Capture `.class`, `key=value` and `key="value"`
+                char *hashPos = line + 1;
+                while (*hashPos != '\0' && *hashPos != '#') {
+                    if (*hashPos == ' ') {
+                        hashPos++;
+                    } else {
+                        break;
+                    }
+                }
+
+                parse_consistent_attribute_syntax_id(trim_whitespace(line + 1), table);
             } else if (line[0] == '|') {
                 table->num_headers = 0;
                 table->num_data_rows = 0;
@@ -249,12 +296,7 @@ Table *parse_table(FILE *input) {
     return table;
 }
 
-void print_json(Table *table, FILE *output) {
-    if (table->attribute)
-    {
-        printf("%s\n", table->attribute);
-    }
-
+void print_table_rows_json(Table *table, FILE *output) {
     fprintf(output, "[\n");
     for (int i = 0; i < table->num_data_rows; i++) {
         fprintf(output, "{");
@@ -262,7 +304,7 @@ void print_json(Table *table, FILE *output) {
             const char *key=table->headers[j];
             const char *data=table->data_rows[i][j];
             if (!data) {
-                // Omitting field if data is missing was chosen over using 'null' 
+                // Omitting field if data is missing was chosen over using 'null'
                 // because it keeps the JSON output cleaner and more concise.
                 // This makes it clearer that the data is missing without adding unnecessary clutter to the JSON structure.
                 continue;
@@ -292,13 +334,54 @@ void print_json(Table *table, FILE *output) {
     fprintf(output, "]\n");
 }
 
+void print_table_json(Table *table, FILE *output) {
+    fprintf(output, "    {\n");
+    fprintf(output, "        \"id\": \"%s\",\n", table->id);
+    fprintf(output, "        \"headers\": [");
+
+    // Print headers
+    for (int j = 0; j < table->num_headers; j++) {
+        fprintf(output, "\"%s\"", table->headers[j]);
+        if (j < table->num_headers - 1) {
+            fprintf(output, ", ");
+        }
+    }
+    fprintf(output, "],\n");
+
+    fprintf(output, "        \"rows\": [\n");
+
+    // Print rows
+    for (int i = 0; i < table->num_data_rows; i++) {
+        fprintf(output, "            {");
+        for (int j = 0; j < table->num_headers; j++) {
+            const char *key = table->headers[j];
+            const char *data = table->data_rows[i][j];
+            if (!data) {
+                continue;
+            }
+            if (j != 0) {
+                fprintf(output, ", ");
+            }
+            if (is_number(data) || is_boolean(data)) {
+                fprintf(output, "\"%s\": %s", key, data);
+            } else {
+                fprintf(output, "\"%s\": \"%s\"", key, data);
+            }
+        }
+        fprintf(output, "}");
+        if (i < table->num_data_rows - 1) {
+            fprintf(output, ",\n");
+        } else {
+            fprintf(output, "\n");
+        }
+    }
+
+    fprintf(output, "        ]\n");
+    fprintf(output, "    }\n");
+}
+
 enum {
-    PSV_OK              =  0,
-    PSV_OK_NULL_KIND    = -1, /* exit 0 if --exit-status is not set*/
-    PSV_ERROR_SYSTEM    =  2,
-    PSV_ERROR_COMPILE   =  3,
-    PSV_OK_NO_OUTPUT    = -4, /* exit 0 if --exit-status is not set*/
-    PSV_ERROR_UNKNOWN   =  5,
+    PSV_OK              =  0
 };
 
 static void usage(int code) {
@@ -319,7 +402,7 @@ static void usage(int code) {
 }
 
 int main(int argc, char* argv[]) {
-    progname = argv[0]; 
+    progname = argv[0];
         int opt;
     char* id = NULL;
     char* output_file = NULL;
@@ -381,7 +464,7 @@ int main(int argc, char* argv[]) {
 
             Table *table = NULL;
             while ((table = parse_table(input_file)) != NULL) {
-                print_json(table, output_stream);
+                print_table_json(table, output_stream);
                 free_table(table);
                 free(table);
             }
@@ -392,7 +475,7 @@ int main(int argc, char* argv[]) {
         // No input files provided, read from stdin
         Table *table = NULL;
         while ((table = parse_table(stdin)) != NULL) {
-            print_json(table, output_stream);
+            print_table_json(table, output_stream);
             free_table(table);
             free(table);
         }
