@@ -3,7 +3,14 @@
 set -euo pipefail
 echo "== BUILD AND RUN psv =="
 make
-./psv
+./psv << HEREDOC
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32.4  | San Francisco|
+| Bob     | 32  | 
+| Charlie | 19  | London       |
+HEREDOC
 if [ 0 -eq 0 ]; then
     echo "build completed."
 else
