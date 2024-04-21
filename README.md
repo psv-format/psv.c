@@ -17,7 +17,7 @@ To build the program, simply run:
 Your executable will be located at `./psv`.
 
 ```
-$ ./psv -h
+$./psv -h
 psv - command-line Markdown to JSON converter
 Usage:
         ./psv [options] [--id <id>] [file...]
@@ -27,6 +27,7 @@ psv reads Markdown documents from the input files or stdin and converts them to 
 Options:
   -o, --output <file>     output JSON to the specified file
   -i, --id <id>           specify the ID of a single table to output
+  -t, --table <pos>       specify the position of a single table to output (must be a positive integer)
   -c, --compact           output only the rows
   -h, --help              display this help message and exit
   -v, --version           output version information and exit
@@ -44,7 +45,7 @@ make && ./psv << 'HEREDOC'
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
-| Bob     | 32  | 
+| Bob     | 32  |
 | Charlie | 19  | London       |
 
 {#test2}
@@ -94,7 +95,7 @@ make && ./psv -c << 'HEREDOC'
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
-| Bob     | 32  | 
+| Bob     | 32  |
 | Charlie | 19  | London       |
 
 | Name    | Age | City         |
@@ -135,7 +136,7 @@ make && ./psv --id dog -c << 'HEREDOC'
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
-| Bob     | 32  | 
+| Bob     | 32  |
 | Charlie | 19  | London       |
 
 {#dog}

@@ -405,7 +405,7 @@ static void usage(int code) {
         "Options:\n"
         "  -o, --output <file>     output JSON to the specified file\n"
         "  -i, --id <id>           specify the ID of a single table to output\n"
-        "  -t, --table <pos>       specify the table position of a single table to output (must be positive integer)\n"
+        "  -t, --table <pos>       specify the position of a single table to output (must be a positive integer)\n"
         "  -c, --compact           output only the rows\n"
         "  -h, --help              display this help message and exit\n"
         "  -v, --version           output version information and exit\n\n"
