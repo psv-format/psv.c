@@ -11,12 +11,6 @@ static const char* progname;
 
 #define TABLE_ID_MAX 255
 
-typedef enum {
-    SCANNING,
-    POTENTIAL_HEADER,
-    DATA
-} State;
-
 typedef struct {
     char id[TABLE_ID_MAX];
     int num_headers;
@@ -135,6 +129,12 @@ void parse_consistent_attribute_syntax_id(const char *buffer, Table *table) {
 
 // Grab A Table From A Stream Input
 Table *parse_table(FILE *input, unsigned int tableCount) {
+    typedef enum {
+        SCANNING,
+        POTENTIAL_HEADER,
+        DATA
+    } State;
+
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -405,6 +405,7 @@ static void usage(int code) {
         "Options:\n"
         "  -o, --output <file>     output JSON to the specified file\n"
         "  -i, --id <id>           specify the ID of a single table to output\n"
+        "  -t, --table <pos>       specify the table position of a single table to output (must be positive integer)\n"
         "  -c, --compact           output only the rows\n"
         "  -h, --help              display this help message and exit\n"
         "  -v, --version           output version information and exit\n\n"
@@ -415,24 +416,26 @@ static void usage(int code) {
 
 int main(int argc, char* argv[]) {
     progname = argv[0];
-    
+
     bool single_table = false;
     bool compact_mode = false;
 
     int opt;
+    int table_num_sel = 0;
     char* id = NULL;
     char* output_file = NULL;
 
     static struct option long_options[] = {
         {"output",  required_argument, 0, 'o'},
         {"id",      required_argument, 0, 'i'},
+        {"table",   required_argument, 0, 't'},
         {"compact", no_argument,       0, 'c'},
         {"help",    no_argument,       0, 'h'},
         {"version", no_argument,       0, 'v'},
         {0, 0, 0, 0}
     };
 
-    while ((opt = getopt_long(argc, argv, "o:i:chv", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "o:i:t:chv", long_options, NULL)) != -1) {
         switch (opt) {
             case 'o':
                 output_file = optarg;
@@ -440,6 +443,15 @@ int main(int argc, char* argv[]) {
             case 'i':
                 single_table = true;
                 id = optarg;
+                break;
+            case 't':
+                single_table = true;
+                table_num_sel = atoi(optarg);
+                if (table_num_sel <= 0) {
+                    printf("-t must be a positive integer\n");
+                    usage(1);
+                    break;
+                }
                 break;
             case 'c':
                 // Compact Output Mode
@@ -490,23 +502,35 @@ int main(int argc, char* argv[]) {
             Table *table = NULL;
             while ((table = parse_table(input_file, tableCount)) != NULL && !foundSingleTable) {
                 if (single_table) {
-                    if (strcmp(table->id, id) == 0)
-                    {
-                        if (compact_mode) {
-                            print_table_rows_json(table, output_stream, 0);
-                        } else {            
-                            print_table_json(table, output_stream, 0);
+                    if (table_num_sel > 0) {
+                        // Select By Table Position
+                        if (table_num_sel == (tableCount + 1)) {
+                            if (compact_mode) {
+                                print_table_rows_json(table, output_stream, 0);
+                            } else {
+                                print_table_json(table, output_stream, 0);
+                            }
+                            foundSingleTable = true; // Set flag to exit loop
                         }
-                        foundSingleTable = true; // Set flag to exit loop
+                    } else {
+                        // Select By String ID
+                        if (strcmp(table->id, id) == 0) {
+                            if (compact_mode) {
+                                print_table_rows_json(table, output_stream, 0);
+                            } else {
+                                print_table_json(table, output_stream, 0);
+                            }
+                            foundSingleTable = true; // Set flag to exit loop
+                        }
                     }
                 } else {
                     if (compact_mode) {
                         print_table_rows_json(table, output_stream, tableCount);
-                    } else {            
+                    } else {
                         print_table_json(table, output_stream, tableCount);
                     }
-                    tableCount++;
                 }
+                tableCount++;
                 free_table(table);
                 free(table);
             }
@@ -524,19 +548,31 @@ int main(int argc, char* argv[]) {
         }
         while ((table = parse_table(stdin, tableCount)) != NULL && !foundSingleTable) {
             if (single_table) {
-                if (strcmp(table->id, id) == 0)
-                {
-                    if (compact_mode) {
-                        print_table_rows_json(table, output_stream, 0);
-                    } else {            
-                        print_table_json(table, output_stream, 0);
+                if (table_num_sel > 0) {
+                    // Select By Table Position
+                    if (table_num_sel == (tableCount + 1)) {
+                        if (compact_mode) {
+                            print_table_rows_json(table, output_stream, 0);
+                        } else {
+                            print_table_json(table, output_stream, 0);
+                        }
+                        foundSingleTable = true; // Set flag to exit loop
                     }
-                    foundSingleTable = true; // Set flag to exit loop
+                } else {
+                    // Select By String ID
+                    if (strcmp(table->id, id) == 0) {
+                        if (compact_mode) {
+                            print_table_rows_json(table, output_stream, 0);
+                        } else {
+                            print_table_json(table, output_stream, 0);
+                        }
+                        foundSingleTable = true; // Set flag to exit loop
+                    }
                 }
             } else {
                 if (compact_mode) {
                     print_table_rows_json(table, output_stream, tableCount);
-                } else {            
+                } else {
                     print_table_json(table, output_stream, tableCount);
                 }
                 tableCount++;

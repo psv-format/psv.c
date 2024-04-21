@@ -160,7 +160,65 @@ make && ./psv -o test.json testdoc.md
 You can pipe results from psv into jq
 
 ```bash
-make && ./psv testdoc.md testdoc.md testdoc.md | jq
+./psv -t 1 -c << 'HEREDOC' | jq
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+HEREDOC
+```
+
+Which would result in a pretty printed output by jq
+
+```json
+[
+  {
+    "Name": "Alice",
+    "Age": 25,
+    "City": "New York"
+  },
+  {
+    "Name": "Bob",
+    "Age": 32,
+    "City": "San Francisco"
+  },
+  {
+    "Name": "Bob",
+    "Age": 32,
+    "City": "Melbourne"
+  },
+  {
+    "Name": "Charlie",
+    "Age": 19,
+    "City": "London"
+  }
+]
+```
+
+
+
+You can also output csv by piping though jq
+
+```bash
+./psv -t 1 -c << 'HEREDOC' | jq -r '.[] | [.Name, .Age, .City] | @csv'
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+HEREDOC
+```
+
+which would result in this output
+
+```csv
+"Alice",25,"New York"
+"Bob",32,"San Francisco"
+"Bob",32,"Melbourne"
+"Charlie",19,"London"
 ```
 
 ## Dev Tips:
