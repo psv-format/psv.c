@@ -16,6 +16,24 @@ To build the program, simply run:
 
 Your executable will be located at `./psv`.
 
+```
+$ ./psv -h
+psv - command-line Markdown to JSON converter
+Usage:
+        ./psv [options] [--id <id>] [file...]
+
+psv reads Markdown documents from the input files or stdin and converts them to JSON format.
+
+Options:
+  -o, --output <file>     output JSON to the specified file
+  -i, --id <id>           specify the ID of a single table to output
+  -c, --compact           output only the rows
+  -h, --help              display this help message and exit
+  -v, --version           output version information and exit
+
+For more information, use './psv --help'.
+```
+
 ### Usage
 
 To parse Markdown tables from standard input:
