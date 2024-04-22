@@ -266,10 +266,10 @@ The .psv standard is currently in flux as we figure out what will work best, but
 We do diverge from Github Flavored Markdown in that a vertical bar is always expected in each line, while [ Example 199 ](https://github.github.com/gfm/#example-199) showed they can handle partially corrupted tables data rows. We don't to keep parsing simpler. 
 Also regarding conversion to json:
 
-* Content of each cell is always assumed to be a straight up json string, so you need to escape `"`, `\`, `/`, backspace, formfeed, linefeed, carriage, return, tab, etc...
-  - TODO: Later on we really need to take advantage of the `|` syntax and minimise the amount of 'escaping' required to just unicode, carriage return, linefeed, formfeed, backspace and `\`. This would allow us to free `"`, `/` for normal usage.
 * If a cell has only json compatible numerical or `true` or `false` json booleans, then the current behavior is to copy it to the data field unquoted.
   - DEV: This can be an argument for having `"` quoting implemented if there are cases where `true` is actually a string. However my argument would be that's why I added `{}` consistent attribute support on top. We could use that feature to add a schema to notify that a particular column should be interpreted as a string. The argument you would then need, is to argue if there is ever a case where a colum would have a mix of string and other datatype.
+
+What's not yet done in psv.c but we should still add is that during the conversion of a string psv content to json string we need to automatically escape certain characters like quotes and tabs (and etc...).
 
 ## Dev Tips:
 
