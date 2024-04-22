@@ -19,8 +19,7 @@ typedef struct {
     char ***data_rows;
 } Table;
 
-char *strtok_esc(char *str, const char *delim) {
-    // https://gist.github.com/mofosyne/81c94740c0f33259606afa823562914c
+char *strtok_escaped(char *str, const char *delim) {
     static char *last_token_end = NULL;
 
     if (str == NULL && last_token_end == NULL)
@@ -30,7 +29,7 @@ char *strtok_esc(char *str, const char *delim) {
     char *token_end = token_start;
 
     while (*token_end != '\0') {
-        if (*token_end == '\\' && *(token_end + 1) != '\0') {
+        if (*token_end == '\\' && *(token_end + 1) == delim[0]) {
             // Handle escaped character
             memmove(token_end, token_end + 1, strlen(token_end + 1) + 1);
             token_end++;
@@ -221,13 +220,13 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
                 }
 
                 // Split and Cache header
-                char *token = strtok_esc(line + 1, "|");
+                char *token = strtok_escaped(line + 1, "|");
                 while (token != NULL) {
                     table->headers = realloc(table->headers, (table->num_headers + 1) * sizeof(char *));
                     table->headers[table->num_headers] = malloc((strlen(token) + 1) * sizeof(char));
                     strcpy(table->headers[table->num_headers], trim_whitespace(token));
                     table->num_headers++;
-                    token = strtok_esc(NULL, "|");
+                    token = strtok_escaped(NULL, "|");
                 }
 
                 // Check if at least one header field is detected
@@ -259,12 +258,12 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
 
                 // Split and check header separators
                 int num_header_separators = 0;
-                char *token = strtok_esc(line + 1, "|");
+                char *token = strtok_escaped(line + 1, "|");
                 while (token != NULL) {
                     if (strstr(token, "---")) {
                         num_header_separators++;
                     }
-                    token = strtok_esc(NULL, "|");
+                    token = strtok_escaped(NULL, "|");
                 }
 
                 // Check if possible table signature is valid
@@ -299,12 +298,12 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
 
                 // Split and Cache data row
                 int num_data_col = 0;
-                char *token = strtok_esc(line + 1, "|");
+                char *token = strtok_escaped(line + 1, "|");
                 while (token != NULL) {
                     table->data_rows[table->num_data_rows][num_data_col] = malloc((strlen(token) + 1) * sizeof(char));
                     strcpy(table->data_rows[table->num_data_rows][num_data_col], trim_whitespace(token));
                     num_data_col++;
-                    token = strtok_esc(NULL, "|");
+                    token = strtok_escaped(NULL, "|");
                 }
 
                 // Keep track of data row
