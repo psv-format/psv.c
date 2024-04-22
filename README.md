@@ -242,7 +242,8 @@ which would result in this output
 
 ## Table Format
 
-The .psv standard is currently in flux as we figure out what will work best, but this is a writeup about the current state and limitation of this psv.c convertor. In general the format looks like below
+The .psv standard is currently in flux as we figure out what will work best, but this is a writeup about the current state and limitation of this psv.c convertor. In general the format looks like below and is based on [Github Flavored Markdown Tables (extension)](https://github.github.com/gfm/#tables-extension-) but with the addition of an optional [Consistent attribute syntax](https://talk.commonmark.org/t/consistent-attribute-syntax/272) header which is currently just for the table anchor ID for now.
+
 
 ```
 {#id}
@@ -254,11 +255,17 @@ The .psv standard is currently in flux as we figure out what will work best, but
 | Charlie | 19  | London       |
 ```
 
-But key thing to note is that there is `{}` which is the consistent attribute syntax which will eventually contain metadata as needed, but for now is just the ID field.
-
-We also have a standard markdown table. Just note that during the conversation to json these things are to be noted:
-* Whitespace in front and back is trimmed
+* How to deal with vertical bars in string: Let's just keep [Github Table example 200](https://github.github.com/gfm/#example-200
+) approach of using `\|` to escape vertical bars (`\\` to escape the backslash itself). 
+* Quote strings not supported in Github Flavored Markdown
+* Spaces between pipes and cell content are trimmed. 
   - DEV: I don't think we should be supporting `"` quoting, as I cannot imagine why anyone would want to have space in front or back of a string in the context of a markdown table (You would usually want quoted string if you are trying to store ascii art etc... but if that's the case then you really should be choosing a more flexible format... as supporting this would make the psv standard more ugly and complex to deal with). This would free `"` for normal usage without having to worry about escaping it.
+* The header row must match the delimiter row in the number of cells. If not, a table will not be recognized [Example 202](https://github.github.com/gfm/#example-202)
+* Excess table cell is ignored like in github markdown tables [Example 204](https://github.github.com/gfm/#example-204). This keeps parsing simpler.
+
+We do diverge from Github Flavored Markdown in that a vertical bar is always expected in each line, while [ Example 199 ](https://github.github.com/gfm/#example-199) showed they can handle partially corrupted tables data rows. We don't to keep parsing simpler. 
+Also regarding conversion to json:
+
 * Content of each cell is always assumed to be a straight up json string, so you need to escape `"`, `\`, `/`, backspace, formfeed, linefeed, carriage, return, tab, etc...
   - TODO: Later on we really need to take advantage of the `|` syntax and minimise the amount of 'escaping' required to just unicode, carriage return, linefeed, formfeed, backspace and `\`. This would allow us to free `"`, `/` for normal usage.
 * If a cell has only json compatible numerical or `true` or `false` json booleans, then the current behavior is to copy it to the data field unquoted.
