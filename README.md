@@ -240,6 +240,30 @@ which would result in this output
 "Charlie",19,"London"
 ```
 
+## Table Format
+
+The .psv standard is currently in flux as we figure out what will work best, but this is a writeup about the current state and limitation of this psv.c convertor. In general the format looks like below
+
+```
+{#id}
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+```
+
+But key thing to note is that there is `{}` which is the consistent attribute syntax which will eventually contain metadata as needed, but for now is just the ID field.
+
+We also have a standard markdown table. Just note that during the conversation to json these things are to be noted:
+* Whitespace in front and back is trimmed
+  - DEV: I don't think we should be supporting `"` quoting, as I cannot imagine why anyone would want to have space in front or back of a string in the context of a markdown table (You would usually want quoted string if you are trying to store ascii art etc... but if that's the case then you really should be choosing a more flexible format... as supporting this would make the psv standard more ugly and complex to deal with). This would free `"` for normal usage without having to worry about escaping it.
+* Content of each cell is always assumed to be a straight up json string, so you need to escape `"`, `\`, `/`, backspace, formfeed, linefeed, carriage, return, tab, etc...
+  - TODO: Later on we really need to take advantage of the `|` syntax and minimise the amount of 'escaping' required to just unicode, carriage return, linefeed, formfeed, backspace and `\`. This would allow us to free `"`, `/` for normal usage.
+* If a cell has only json compatible numerical or `true` or `false` json booleans, then the current behavior is to copy it to the data field unquoted.
+  - DEV: This can be an argument for having `"` quoting implemented if there are cases where `true` is actually a string. However my argument would be that's why I added `{}` consistent attribute support on top. We could use that feature to add a schema to notify that a particular column should be interpreted as a string. The argument you would then need, is to argue if there is ever a case where a colum would have a mix of string and other datatype.
+
 ## Dev Tips:
 
 ### Memory Leak Detection (using Valgrind)
@@ -260,5 +284,4 @@ make && valgrind --leak-check=full \
 - **Output Format**: The output JSON format is designed to mirror the structure of Markdown tables, with each table represented as a JSON object containing an ID, headers, and rows. This format aims to provide a clear and intuitive mapping from Markdown to JSON, making it easy to work with the converted data programmatically.
 
 - **Partial Parsing of Consistent Attribute Syntax**: The decision to focus on parsing the `#id` attribute only, rather than the entire consistent attribute syntax, was made to simplify the implementation and streamline the conversion process for this MVP. Later on we can add extra feature.
-
 
