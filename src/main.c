@@ -20,10 +20,10 @@ typedef struct {
 } Table;
 
 char *tokenize_escaped_delim(char *str, char delim, char **tokenization_state) {
-    if (str == NULL && *tokenization_state == NULL)
+    if (str == NULL)
         return NULL;
 
-    char *token_start = (str != NULL) ? str : *tokenization_state + 1;
+    char *token_start = (*tokenization_state == NULL) ? str : *tokenization_state + 1;
     char *token_end = token_start;
 
     while (*token_end != '\0') {
@@ -223,13 +223,12 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
 
                 // Split and Cache header
                 char *tokenization_state = NULL;
-                char *token = tokenize_escaped_delim(line + 1, '|', &tokenization_state);
-                while (token != NULL) {
+                char *token;
+                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
                     table->headers = realloc(table->headers, (table->num_headers + 1) * sizeof(char *));
                     table->headers[table->num_headers] = malloc((strlen(token) + 1) * sizeof(char));
                     strcpy(table->headers[table->num_headers], trim_whitespace(token));
                     table->num_headers++;
-                    token = tokenize_escaped_delim(NULL, '|', &tokenization_state);
                 }
 
                 // Check if at least one header field is detected
@@ -262,12 +261,11 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
                 // Split and check header separators
                 char *tokenization_state = NULL;
                 int num_header_separators = 0;
-                char *token = tokenize_escaped_delim(line + 1, '|', &tokenization_state);
-                while (token != NULL) {
+                char *token;
+                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
                     if (strstr(token, "---")) {
                         num_header_separators++;
                     }
-                    token = tokenize_escaped_delim(NULL, '|', &tokenization_state);
                 }
 
                 // Check if possible table signature is valid
@@ -303,12 +301,11 @@ Table *parse_table(FILE *input, unsigned int tableCount) {
                 // Split and Cache data row
                 char *tokenization_state = NULL;
                 int num_data_col = 0;
-                char *token = tokenize_escaped_delim(line + 1, '|', &tokenization_state);
-                while (token != NULL) {
+                char *token;
+                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
                     table->data_rows[table->num_data_rows][num_data_col] = malloc((strlen(token) + 1) * sizeof(char));
                     strcpy(table->data_rows[table->num_data_rows][num_data_col], trim_whitespace(token));
                     num_data_col++;
-                    token = tokenize_escaped_delim(NULL, '|', &tokenization_state);
                 }
 
                 // Keep track of data row
