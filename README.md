@@ -61,29 +61,8 @@ HEREDOC
 The above command would give a response that may look like below
 
 ```json
-[
-    {
-        "id": "table1",
-        "headers": ["Name", "Age", "City"],
-        "rows": [
-            {"Name": "Alice", "Age": 25, "City": "New York"},
-            {"Name": "Bob", "Age": 32.4, "City": "San Francisco"},
-            {"Name": "Bob", "Age": 32},
-            {"Name": "Charlie", "Age": 19, "City": "London"}
-        ]
-    }
-    ,
-    {
-        "id": "test2",
-        "headers": ["Name", "Age", "City"],
-        "rows": [
-            {"Name": "Alice", "Age": 25, "City": "New York"},
-            {"Name": "Bob", "Age": 32, "City": "San Francisco"},
-            {"Name": "Bob", "Age": 32, "City": "Melbourne"},
-            {"Name": "Charlie", "Age": 19, "City": "London"}
-        ]
-    }
-]
+{"id":"table1","headers":["Name","Age","City"],"rows":[{"Name":"Alice","Age":25,"City":"New York"},{"Name":"Bob","Age":32.4,"City":"San Francisco"},{"Name":"Bob","Age":32},{"Name":"Charlie","Age":19,"City":"London"}]}
+{"id":"test2","headers":["Name","Age","City"],"rows":[{"Name":"Alice","Age":25,"City":"New York"},{"Name":"Bob","Age":32,"City":"San Francisco"},{"Name":"Bob","Age":32,"City":"Melbourne"},{"Name":"Charlie","Age":19,"City":"London"}]}
 ```
 
 There is also a compact mode
@@ -110,21 +89,8 @@ HEREDOC
 which has a more compact representation
 
 ```json
-[
-   [
-       {"Name": "Alice", "Age": 25, "City": "New York"},
-       {"Name": "Bob", "Age": 32.4, "City": "San Francisco"},
-       {"Name": "Bob", "Age": 32},
-       {"Name": "Charlie", "Age": 19, "City": "London"}
-   ]
-   ,
-   [
-       {"Name": "Alice", "Age": 25, "City": "New York"},
-       {"Name": "Bob", "Age": 32, "City": "San Francisco"},
-       {"Name": "Bob", "Age": 32, "City": "Melbourne"},
-       {"Name": "Charlie", "Age": 19, "City": "London"}
-   ]
-]
+[{"Name":"Alice","Age":25,"City":"New York"},{"Name":"Bob","Age":32.4,"City":"San Francisco"},{"Name":"Bob","Age":32},{"Name":"Charlie","Age":19,"City":"London"}]
+[{"Name":"Alice","Age":25,"City":"New York"},{"Name":"Bob","Age":32,"City":"San Francisco"},{"Name":"Bob","Age":32,"City":"Melbourne"},{"Name":"Charlie","Age":19,"City":"London"}]
 ```
 
 Finally you can select table by ID
@@ -152,12 +118,7 @@ HEREDOC
 Which would output just the table marked as dog
 
 ```json
-   [
-       {"Name": "Alice", "Age": 25, "City": "New York"},
-       {"Name": "Bob", "Age": 32, "City": "San Francisco"},
-       {"Name": "Bob", "Age": 32, "City": "Melbourne"},
-       {"Name": "Charlie", "Age": 19, "City": "London"}
-   ]
+[{"Name":"Alice","Age":25,"City":"New York"},{"Name":"Bob","Age":32,"City":"San Francisco"},{"Name":"Bob","Age":32,"City":"Melbourne"},{"Name":"Charlie","Age":19,"City":"London"}]
 ```
 
 To specify an output file:
@@ -174,17 +135,6 @@ To parse Markdown tables from a file:
 make && ./psv -o test.json testdoc.md
 ```
 
-
-```bash
-make && ./psv -t 1 -c << 'HEREDOC'
-| Name    | Age | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
-HEREDOC
-```
 
 ### Using with jq
 
@@ -227,8 +177,6 @@ Which would result in a pretty printed output by jq
   }
 ]
 ```
-
-
 
 You can also output csv by piping though jq
 
