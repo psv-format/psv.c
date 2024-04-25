@@ -22,6 +22,7 @@ bool is_boolean(const char *value) {
     return strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
 }
 
+// Create JSON array of table rows
 cJSON *create_table_rows_json(PsvTable *table) {
     cJSON *rows_json = cJSON_CreateArray();
     for (int i = 0; i < table->num_data_rows; i++) {
@@ -29,13 +30,17 @@ cJSON *create_table_rows_json(PsvTable *table) {
         for (int j = 0; j < table->num_headers; j++) {
             const char *key = table->headers[j];
             const char *data = table->data_rows[i][j];
-            if (!data) {
-                continue;
-            }
-            if (is_number(data) || is_boolean(data)) {
-                cJSON_AddItemToObject(row_json, key, cJSON_CreateRaw(data));
-            } else {
+            if (data) {
+#if 0   // Automatic Type Detection
+        // Dev Note: Disabled for now until explicit typing is figured out
+                if (is_number(data) || is_boolean(data)) {
+                    cJSON_AddItemToObject(row_json, key, cJSON_CreateRaw(data));
+                } else {
+                    cJSON_AddItemToObject(row_json, key, cJSON_CreateString(data));
+                }
+#else
                 cJSON_AddItemToObject(row_json, key, cJSON_CreateString(data));
+#endif
             }
         }
         cJSON_AddItemToArray(rows_json, row_json);
@@ -43,6 +48,7 @@ cJSON *create_table_rows_json(PsvTable *table) {
     return rows_json;
 }
 
+// Create JSON object representing a table
 cJSON *create_table_json(PsvTable *table) {
     cJSON *table_json = cJSON_CreateObject();
     cJSON_AddItemToObject(table_json, "id", cJSON_CreateString(table->id));
@@ -57,11 +63,6 @@ cJSON *create_table_json(PsvTable *table) {
     cJSON_AddItemToObject(table_json, "rows", rows_json);
     return table_json;
 }
-
-
-enum {
-    PSV_OK              =  0
-};
 
 static void usage(int code) {
     FILE *f = (code == 0) ? stdout : stderr;
@@ -82,6 +83,7 @@ static void usage(int code) {
     exit(code);
 }
 
+// Print usage information
 int main(int argc, char* argv[]) {
     progname = argv[0];
 
@@ -116,9 +118,8 @@ int main(int argc, char* argv[]) {
                 single_table = true;
                 table_num_sel = atoi(optarg);
                 if (table_num_sel <= 0) {
-                    printf("-t must be a positive integer\n");
+                    fprintf(stderr, "-t must be a positive integer\n");
                     usage(1);
-                    break;
                 }
                 break;
             case 'c':
@@ -237,5 +238,5 @@ int main(int argc, char* argv[]) {
         fclose(output_stream);
     }
 
-    return PSV_OK;
+    return 0;
 }
