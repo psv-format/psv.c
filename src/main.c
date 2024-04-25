@@ -1,73 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <stdbool.h>
 #include <getopt.h>
 
 #include "config.h"
+#include "psv.h"
 
 static const char* progname;
-
-#define TABLE_ID_MAX 255
-
-typedef struct {
-    char id[TABLE_ID_MAX];
-    int num_headers;
-    char **headers;
-    int num_data_rows;
-    char ***data_rows;
-} Table;
-
-char *tokenize_escaped_delim(char *str, char delim, char **tokenization_state) {
-    if (str == NULL)
-        return NULL;
-
-    char *token_start = (*tokenization_state == NULL) ? str : *tokenization_state + 1;
-    char *token_end = token_start;
-
-    while (*token_end != '\0') {
-        if (*token_end == '\\') {
-            if (*(token_end + 1) == '\\'
-                || *(token_end + 1) == delim
-                || ispunct(*(token_end + 1))) {
-                // Handle escaped backslash, delimiter and punctuation
-                memmove(token_end, token_end + 1, strlen(token_end + 1) + 1);
-                token_end++;
-            }
-        } else if (*token_end == delim) {
-            // Found delimiter
-            *token_end = '\0';
-            *tokenization_state = token_end;
-            return token_start;
-        }
-        token_end++;
-    }
-
-    if (*token_start == '\0')
-        return NULL;
-
-    *tokenization_state = token_end - 1;
-    return token_start;
-}
-
-char *trim_whitespace(char *str) {
-    // Trim leading space
-    while (isspace((unsigned char)*str)) {
-        str++;
-    }
-
-    // Trim trailing space
-    if (*str != '\0') {
-        char *end = str + strlen(str) - 1;
-        while (end > str && isspace((unsigned char)*end)) {
-            end--;
-        }
-        *(end + 1) = '\0';
-    }
-
-    return str;
-}
 
 // Function to check if a string represents a valid JSON number
 bool is_number(const char *value) {
@@ -81,257 +21,7 @@ bool is_boolean(const char *value) {
     return strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
 }
 
-// Parse Consistent Attribute Syntax For ID field
-char* parse_consistent_attribute_id(const char *attribute) {
-    const char *start = strchr(attribute, '#');
-    if (!start) {
-        // No ID found
-        return NULL;
-    }
-    start++; // Move past the '#' character
-    const char *end = strchr(start, ' '); // ID ends with a space or end of string
-    if (!end) {
-        end = attribute + strlen(attribute); // If no space found, ID extends till end of string
-    }
-    int id_length = end - start;
-    char *id = (char *)malloc((id_length + 1) * sizeof(char));
-    if (!id) {
-        // Memory allocation failed
-        return NULL;
-    }
-    strncpy(id, start, id_length);
-    id[id_length] = '\0'; // Null-terminate the string
-    return id;
-}
-
-// Free Memory Allocation For A Table
-void free_table(Table *table) {
-    // Free Table ID
-
-    // Free Tabular Header
-    if (table->headers) {
-        for (int i = 0; i < table->num_headers; i++) {
-            free(table->headers[i]);
-            table->headers[i] = NULL;
-        }
-        free(table->headers);
-        table->headers = NULL;
-    }
-
-    // Free Tabular Data
-    if (table->data_rows) {
-        for (int i = 0; i < table->num_data_rows; i++) {
-            for (int j = 0; j < table->num_headers; j++) {
-                free(table->data_rows[i][j]);
-                table->data_rows[i][j] = NULL;
-            }
-            free(table->data_rows[i]);
-            table->data_rows[i] = NULL;
-        }
-        free(table->data_rows);
-        table->data_rows = NULL;
-    }
-
-    // Reset Metadata
-    table->num_data_rows = 0;
-    table->num_headers = 0;
-}
-
-void parse_consistent_attribute_syntax_id(const char *buffer, Table *table) {
-    while (*buffer != '\0' && *buffer != '#') {
-        if (*buffer == ' ') {
-            buffer++;
-        } else {
-            // ID must be in front of all other class or key:value
-            return;
-        }
-    }
-    if (*buffer == '#') {
-        // ID found
-        buffer++; // Move past the '#' character
-        // Copy the ID until a space or '}' is encountered
-        int i = 0;
-        while ((i < TABLE_ID_MAX) && (*buffer != '\0') && *buffer != ' ' && *buffer != '}') {
-            table->id[i] = *buffer++;
-            i++;
-        }
-        table->id[i] = '\0'; // Null-terminate the ID
-    }
-}
-
-// Grab A Table From A Stream Input
-Table *parse_table(FILE *input, unsigned int tableCount) {
-    typedef enum {
-        SCANNING,
-        POTENTIAL_HEADER,
-        DATA
-    } State;
-
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    State state = SCANNING;
-    Table *table = malloc(sizeof(Table));
-    *table = (Table){0};
-
-    while ((read = getline(&line, &len, input)) != -1) {
-        if (state == SCANNING) {
-            if (line[0] == '{') {
-                // Parse Consistent attribute syntax https://talk.commonmark.org/t/consistent-attribute-syntax/272
-
-                // Check for metadata
-                bool closing_bracket = false;
-
-                // Trim '}' on right hand side
-                for (int i = read - 1; i > 0; i--) {
-                    if (line[i] == '}') {
-                        line[i] = '\0';
-                        closing_bracket = true;
-                        break;
-                    }
-                }
-
-                size_t str_line = strlen(line + 1);
-
-                if (!closing_bracket && str_line == 0) {
-                    continue;
-                }
-
-                // Parse table ID anchor
-                // TODO: Capture `.class`, `key=value` and `key="value"`
-                char *hashPos = line + 1;
-                while (*hashPos != '\0' && *hashPos != '#') {
-                    if (*hashPos == ' ') {
-                        hashPos++;
-                    } else {
-                        break;
-                    }
-                }
-
-                parse_consistent_attribute_syntax_id(trim_whitespace(line + 1), table);
-            } else if (line[0] == '|') {
-                table->num_headers = 0;
-                table->num_data_rows = 0;
-
-                // Trim '|' on right hand side
-                for (int i = read - 1; i > 0; i--) {
-                    if (line[i] == '|') {
-                        line[i] = '\0';
-                        break;
-                    }
-                }
-
-                // Split and Cache header
-                char *tokenization_state = NULL;
-                char *token;
-                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
-                    table->headers = realloc(table->headers, (table->num_headers + 1) * sizeof(char *));
-                    table->headers[table->num_headers] = malloc((strlen(token) + 1) * sizeof(char));
-                    strcpy(table->headers[table->num_headers], trim_whitespace(token));
-                    table->num_headers++;
-                }
-
-                // Check if at least one header field is detected
-                if (table->num_headers > 0) {
-                    state = POTENTIAL_HEADER;
-                    if (table->id[0] == '\0') {
-                        snprintf(table->id, TABLE_ID_MAX, "table%d", tableCount+1);
-                    }
-                } else {
-                    free_table(table);
-                }
-            } else {
-                // Not a table header
-
-                // Free table in case we found Consistent Attribute Syntax but no table
-                // Since it might be for a different block instead
-                free_table(table);
-            }
-        } else if (state == POTENTIAL_HEADER) {
-            // Check if actual header by checking if there is enough '|---|'
-            if (line[0] == '|') {
-                // Trim '|' on right hand side
-                for (int i = read - 1; i > 0; i--) {
-                    if (line[i] == '|') {
-                        line[i] = '\0';
-                        break;
-                    }
-                }
-
-                // Split and check header separators
-                char *tokenization_state = NULL;
-                int num_header_separators = 0;
-                char *token;
-                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
-                    if (strstr(token, "---")) {
-                        num_header_separators++;
-                    }
-                }
-
-                // Check if possible table signature is valid
-                if (table->num_headers == num_header_separators) {
-                    // It's most likely a markdown table
-                    // We can now safely start parsing the data rows
-                    state = DATA;
-                } else {
-                    // Mismatch with headers, free the allocated memory
-                    state = SCANNING;
-                    free_table(table);
-                }
-            }
-        } else if (state == DATA) {
-            if (line[0] == '|') {
-                // Trim '|' on right hand side
-                for (int i = read - 1; i > 0; i--) {
-                    if (line[i] == '|') {
-                        line[i] = '\0';
-                        break;
-                    }
-                }
-
-                // Add a new row
-                table->data_rows = realloc(table->data_rows, (table->num_data_rows + 1) * sizeof(char **));
-                table->data_rows[table->num_data_rows] = malloc(table->num_headers * sizeof(char *));
-                for (int i = 0 ; i < table->num_headers ; i++) {
-                    // Set every header data entry in a row to NULL
-                    // (This is to tell valgrind that we intentionally want each entry as empty in case of missing entries)
-                    table->data_rows[table->num_data_rows][i] = NULL;
-                }
-
-                // Split and Cache data row
-                char *tokenization_state = NULL;
-                int num_data_col = 0;
-                char *token;
-                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
-                    table->data_rows[table->num_data_rows][num_data_col] = malloc((strlen(token) + 1) * sizeof(char));
-                    strcpy(table->data_rows[table->num_data_rows][num_data_col], trim_whitespace(token));
-                    num_data_col++;
-                }
-
-                // Keep track of data row
-                table->num_data_rows++;
-            } else {
-                // End of Table detected
-                break;
-            }
-        }
-    }
-
-    // Release getline's buffer
-    free(line);
-
-    // Check if we have a table to return to caller
-    if (state != DATA)
-    {
-        free_table(table);
-        free(table);
-        return NULL;
-    }
-
-    return table;
-}
-
-void print_table_rows_json(Table *table, FILE *output, unsigned int tableCount) {
+void print_table_rows_json(PsvTable *table, FILE *output, unsigned int tableCount) {
     if (tableCount != 0) {
         fprintf(output, "   ,\n");
     }
@@ -373,7 +63,7 @@ void print_table_rows_json(Table *table, FILE *output, unsigned int tableCount) 
     fprintf(output, "   ]\n");
 }
 
-void print_table_json(Table *table, FILE *output, unsigned int tableCount) {
+void print_table_json(PsvTable *table, FILE *output, unsigned int tableCount) {
     if (tableCount != 0) {
         fprintf(output, "    ,\n");
     }
@@ -531,12 +221,12 @@ int main(int argc, char* argv[]) {
                 exit(1);
             }
 
-            Table *table = NULL;
-            while ((table = parse_table(input_file, tableCount)) != NULL && !foundSingleTable) {
+            PsvTable *table = NULL;
+            while ((table = psv_parse_table(input_file, &tableCount)) != NULL && !foundSingleTable) {
                 if (single_table) {
                     if (table_num_sel > 0) {
                         // Select By Table Position
-                        if (table_num_sel == (tableCount + 1)) {
+                        if (table_num_sel == tableCount) {
                             if (compact_mode) {
                                 print_table_rows_json(table, output_stream, 0);
                             } else {
@@ -562,8 +252,7 @@ int main(int argc, char* argv[]) {
                         print_table_json(table, output_stream, tableCount);
                     }
                 }
-                tableCount++;
-                free_table(table);
+                psv_free_table(table);
                 free(table);
             }
 
@@ -574,15 +263,15 @@ int main(int argc, char* argv[]) {
         }
     } else {
         // No input files provided, read from stdin
-        Table *table = NULL;
+        PsvTable *table = NULL;
         if (!single_table) {
             fprintf(output_stream, "[\n");
         }
-        while ((table = parse_table(stdin, tableCount)) != NULL && !foundSingleTable) {
+        while ((table = psv_parse_table(stdin, &tableCount)) != NULL && !foundSingleTable) {
             if (single_table) {
                 if (table_num_sel > 0) {
                     // Select By Table Position
-                    if (table_num_sel == (tableCount + 1)) {
+                    if (table_num_sel == tableCount) {
                         if (compact_mode) {
                             print_table_rows_json(table, output_stream, 0);
                         } else {
@@ -607,9 +296,8 @@ int main(int argc, char* argv[]) {
                 } else {
                     print_table_json(table, output_stream, tableCount);
                 }
-                tableCount++;
             }
-            free_table(table);
+            psv_free_table(table);
             free(table);
         }
         if (!single_table) {

@@ -1,5 +1,5 @@
 bin_PROGRAMS = psv
-psv_SOURCES = src/main.c
+psv_SOURCES = src/main.c src/psv.c src/psv.h
 
 check_PROGRAMS = unit_test
 unit_test_SOURCES = tests/unit_test.c
