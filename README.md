@@ -217,17 +217,18 @@ The .psv standard is currently in flux as we figure out what will work best, but
 
 * How to deal with vertical bars in string: Let's just keep [Github Table example 200](https://github.github.com/gfm/#example-200
 ) approach of using `\|` to escape vertical bars (`\\` to escape the backslash itself). 
-* Quote strings not supported in Github Flavored Markdown
+* Quote strings not supported in Github Flavored Markdown and for simplicity sake this behavior is carried over to psv
 * Spaces between pipes and cell content are trimmed. 
   - DEV: I don't think we should be supporting `"` quoting, as I cannot imagine why anyone would want to have space in front or back of a string in the context of a markdown table (You would usually want quoted string if you are trying to store ascii art etc... but if that's the case then you really should be choosing a more flexible format... as supporting this would make the psv standard more ugly and complex to deal with). This would free `"` for normal usage without having to worry about escaping it.
 * The header row must match the delimiter row in the number of cells. If not, a table will not be recognized [Example 202](https://github.github.com/gfm/#example-202)
 * Excess table cell is ignored like in github markdown tables [Example 204](https://github.github.com/gfm/#example-204). This keeps parsing simpler.
 
-We do diverge from Github Flavored Markdown in that a vertical bar is always expected in each line, while [ Example 199 ](https://github.github.com/gfm/#example-199) showed they can handle partially corrupted tables data rows. We don't to keep parsing simpler. 
+We do diverge from Github Flavored Markdown in that a vertical bar is always expected in each line, while [ Example 199 ](https://github.github.com/gfm/#example-199) showed they can handle partially corrupted tables data rows. We don't to keep parsing simpler.
+
 Also regarding conversion to json:
 
-* If a cell has only json compatible numerical or `true` or `false` json booleans, then the current behavior is to copy it to the data field unquoted.
-  - DEV: This can be an argument for having `"` quoting implemented if there are cases where `true` is actually a string. However my argument would be that's why I added `{}` consistent attribute support on top. We could use that feature to add a schema to notify that a particular column should be interpreted as a string. The argument you would then need, is to argue if there is ever a case where a colum would have a mix of string and other datatype.
+* All cells are assumed to be string by default and the user is expected to do the conversion themselves. This conservative data typing keeps the conversion process more consistent with less magic to go wrong.
+  - Later on, we can figure out how to do semantic tagging and datatype annotation to more explicitly recommend a datatype and interpretation
 
 What's not yet done in psv.c but we should still add is that during the conversion of a string psv content to json string we need to automatically escape certain characters like quotes and tabs (and etc...).
 
