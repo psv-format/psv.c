@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "psv.h"
+#include "cJSON.h"
 
 static const char* progname;
 
@@ -21,97 +22,42 @@ bool is_boolean(const char *value) {
     return strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
 }
 
-void print_table_rows_json(PsvTable *table, FILE *output, unsigned int tableCount) {
-    if (tableCount != 0) {
-        fprintf(output, "   ,\n");
-    }
-
-    fprintf(output, "   [\n");
+cJSON *create_table_rows_json(PsvTable *table) {
+    cJSON *rows_json = cJSON_CreateArray();
     for (int i = 0; i < table->num_data_rows; i++) {
-        fprintf(output, "       {");
-        for (int j = 0; j < table->num_headers; j++) {
-            const char *key=table->headers[j];
-            const char *data=table->data_rows[i][j];
-            if (!data) {
-                // Omitting field if data is missing was chosen over using 'null'
-                // because it keeps the JSON output cleaner and more concise.
-                // This makes it clearer that the data is missing without adding unnecessary clutter to the JSON structure.
-                continue;
-            }
-
-            // Add comma to separate key:data fields
-            if (j != 0) {
-                fprintf(output, ", ");
-            }
-
-            // Check if the data is a valid JSON number or boolean
-            if (is_number(data) || is_boolean(data)) {
-                // If the data is a number or boolean, print it without quotes
-                fprintf(output, "\"%s\": %s", key, data);
-            } else {
-                // Otherwise, print it with quotes
-                fprintf(output, "\"%s\": \"%s\"", key, data);
-            }
-        }
-        fprintf(output, "}");
-        if (i < table->num_data_rows - 1) {
-            fprintf(output, ",\n");
-        } else {
-            fprintf(output, "\n");
-        }
-    }
-    fprintf(output, "   ]\n");
-}
-
-void print_table_json(PsvTable *table, FILE *output, unsigned int tableCount) {
-    if (tableCount != 0) {
-        fprintf(output, "    ,\n");
-    }
-
-    fprintf(output, "    {\n");
-    fprintf(output, "        \"id\": \"%s\",\n", table->id);
-    fprintf(output, "        \"headers\": [");
-
-    // Print headers
-    for (int j = 0; j < table->num_headers; j++) {
-        fprintf(output, "\"%s\"", table->headers[j]);
-        if (j < table->num_headers - 1) {
-            fprintf(output, ", ");
-        }
-    }
-    fprintf(output, "],\n");
-
-    fprintf(output, "        \"rows\": [\n");
-
-    // Print rows
-    for (int i = 0; i < table->num_data_rows; i++) {
-        fprintf(output, "            {");
+        cJSON *row_json = cJSON_CreateObject();
         for (int j = 0; j < table->num_headers; j++) {
             const char *key = table->headers[j];
             const char *data = table->data_rows[i][j];
             if (!data) {
                 continue;
             }
-            if (j != 0) {
-                fprintf(output, ", ");
-            }
             if (is_number(data) || is_boolean(data)) {
-                fprintf(output, "\"%s\": %s", key, data);
+                cJSON_AddItemToObject(row_json, key, cJSON_CreateRaw(data));
             } else {
-                fprintf(output, "\"%s\": \"%s\"", key, data);
+                cJSON_AddItemToObject(row_json, key, cJSON_CreateString(data));
             }
         }
-        fprintf(output, "}");
-        if (i < table->num_data_rows - 1) {
-            fprintf(output, ",\n");
-        } else {
-            fprintf(output, "\n");
-        }
+        cJSON_AddItemToArray(rows_json, row_json);
     }
-
-    fprintf(output, "        ]\n");
-    fprintf(output, "    }\n");
+    return rows_json;
 }
+
+cJSON *create_table_json(PsvTable *table) {
+    cJSON *table_json = cJSON_CreateObject();
+    cJSON_AddItemToObject(table_json, "id", cJSON_CreateString(table->id));
+
+    cJSON *headers_json = cJSON_CreateArray();
+    for (int j = 0; j < table->num_headers; j++) {
+        cJSON_AddItemToArray(headers_json, cJSON_CreateString(table->headers[j]));
+    }
+    cJSON_AddItemToObject(table_json, "headers", headers_json);
+
+    cJSON *rows_json = create_table_rows_json(table);
+    cJSON_AddItemToObject(table_json, "rows", rows_json);
+    return table_json;
+}
+
 
 enum {
     PSV_OK              =  0
@@ -211,9 +157,6 @@ int main(int argc, char* argv[]) {
     unsigned int tableCount = 0;
     bool foundSingleTable = false;
     if (optind < argc) {
-        if (!single_table) {
-            fprintf(output_stream, "[\n");
-        }
         for (int i = optind; i < argc && !foundSingleTable; i++) {
             FILE* input_file = fopen(argv[i], "r");
             if (!input_file) {
@@ -222,86 +165,71 @@ int main(int argc, char* argv[]) {
             }
 
             PsvTable *table = NULL;
+            cJSON *table_json = NULL;
             while ((table = psv_parse_table(input_file, &tableCount)) != NULL && !foundSingleTable) {
                 if (single_table) {
                     if (table_num_sel > 0) {
                         // Select By Table Position
                         if (table_num_sel == tableCount) {
-                            if (compact_mode) {
-                                print_table_rows_json(table, output_stream, 0);
-                            } else {
-                                print_table_json(table, output_stream, 0);
-                            }
+                            table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
                             foundSingleTable = true; // Set flag to exit loop
                         }
                     } else {
                         // Select By String ID
                         if (strcmp(table->id, id) == 0) {
-                            if (compact_mode) {
-                                print_table_rows_json(table, output_stream, 0);
-                            } else {
-                                print_table_json(table, output_stream, 0);
-                            }
+                            table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
                             foundSingleTable = true; // Set flag to exit loop
                         }
                     }
                 } else {
-                    if (compact_mode) {
-                        print_table_rows_json(table, output_stream, tableCount);
-                    } else {
-                        print_table_json(table, output_stream, tableCount);
-                    }
+                    table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
                 }
+
+                if (table_json) {
+                    char *json_string = cJSON_PrintUnformatted(table_json);
+                    fprintf(output_stream, "%s\n", json_string);
+                    free(json_string);
+                    cJSON_Delete(table_json);
+                }
+
                 psv_free_table(table);
                 free(table);
             }
 
             fclose(input_file);
         }
-        if (!single_table) {
-            fprintf(output_stream, "]\n");
-        }
     } else {
         // No input files provided, read from stdin
         PsvTable *table = NULL;
-        if (!single_table) {
-            fprintf(output_stream, "[\n");
-        }
+        cJSON *table_json = NULL;
         while ((table = psv_parse_table(stdin, &tableCount)) != NULL && !foundSingleTable) {
             if (single_table) {
                 if (table_num_sel > 0) {
                     // Select By Table Position
                     if (table_num_sel == tableCount) {
-                        if (compact_mode) {
-                            print_table_rows_json(table, output_stream, 0);
-                        } else {
-                            print_table_json(table, output_stream, 0);
-                        }
+                        table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
                         foundSingleTable = true; // Set flag to exit loop
                     }
                 } else {
                     // Select By String ID
                     if (strcmp(table->id, id) == 0) {
-                        if (compact_mode) {
-                            print_table_rows_json(table, output_stream, 0);
-                        } else {
-                            print_table_json(table, output_stream, 0);
-                        }
+                        table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
                         foundSingleTable = true; // Set flag to exit loop
                     }
                 }
             } else {
-                if (compact_mode) {
-                    print_table_rows_json(table, output_stream, tableCount);
-                } else {
-                    print_table_json(table, output_stream, tableCount);
-                }
+                table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
             }
+
+            if (table_json) {
+                char *json_string = cJSON_PrintUnformatted(table_json);
+                fprintf(output_stream, "%s\n", json_string);
+                free(json_string);
+                cJSON_Delete(table_json);
+            }
+
             psv_free_table(table);
             free(table);
-        }
-        if (!single_table) {
-            fprintf(output_stream, "]\n");
         }
     }
 

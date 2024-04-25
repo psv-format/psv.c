@@ -174,12 +174,24 @@ To parse Markdown tables from a file:
 make && ./psv -o test.json testdoc.md
 ```
 
+
+```bash
+make && ./psv -t 1 -c << 'HEREDOC'
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+HEREDOC
+```
+
 ### Using with jq
 
 You can pipe results from psv into jq
 
 ```bash
-./psv -t 1 -c << 'HEREDOC' | jq
+make && ./psv -t 1 -c << 'HEREDOC' | jq
 | Name    | Age | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
