@@ -62,3 +62,4 @@ build-aux/
 
 *.o
 psv
+valgrind-out.txt

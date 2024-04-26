@@ -107,10 +107,12 @@ void psv_free_table(PsvTable *table) {
     // Reset Metadata
     table->num_data_rows = 0;
     table->num_headers = 0;
+
+    free(table);
 }
 
 // Grab A Table From A Stream Input
-PsvTable *psv_parse_table(FILE *input, unsigned int *tableCount) {
+PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
     typedef enum {
         SCANNING,
         POTENTIAL_HEADER,
@@ -185,7 +187,7 @@ PsvTable *psv_parse_table(FILE *input, unsigned int *tableCount) {
                 if (table->num_headers > 0) {
                     state = POTENTIAL_HEADER;
                     if (table->id[0] == '\0') {
-                        snprintf(table->id, PSV_TABLE_ID_MAX, "table%d", *tableCount+1);
+                        strcpy(table->id, defaultTableID);
                     }
                 } else {
                     psv_free_table(table);
@@ -274,10 +276,8 @@ PsvTable *psv_parse_table(FILE *input, unsigned int *tableCount) {
     if (state != DATA)
     {
         psv_free_table(table);
-        free(table);
         return NULL;
     }
 
-    *tableCount = *tableCount + 1;
     return table;
 }

@@ -5,7 +5,7 @@
 #define PSV_TABLE_ID_MAX 255
 
 typedef struct {
-    char id[PSV_TABLE_ID_MAX];
+    char id[PSV_TABLE_ID_MAX + 1];
     int num_headers;
     char **headers;
     int num_data_rows;
@@ -14,6 +14,6 @@ typedef struct {
 
 
 void psv_free_table(PsvTable *table);
-PsvTable *psv_parse_table(FILE *input, unsigned int *tableCount);
+PsvTable *psv_parse_table(FILE *input, char *defaultTableID);
 
 #endif

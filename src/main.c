@@ -10,18 +10,6 @@
 
 static const char* progname;
 
-// Function to check if a string represents a valid JSON number
-bool is_number(const char *value) {
-    char *endptr;
-    strtod(value, &endptr);
-    return *endptr == '\0';
-}
-
-// Function to check if a string represents a valid JSON boolean
-bool is_boolean(const char *value) {
-    return strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
-}
-
 // Create JSON array of table rows
 cJSON *create_table_rows_json(PsvTable *table) {
     cJSON *rows_json = cJSON_CreateArray();
@@ -31,16 +19,7 @@ cJSON *create_table_rows_json(PsvTable *table) {
             const char *key = table->headers[j];
             const char *data = table->data_rows[i][j];
             if (data) {
-#if 0   // Automatic Type Detection
-        // Dev Note: Disabled for now until explicit typing is figured out
-                if (is_number(data) || is_boolean(data)) {
-                    cJSON_AddItemToObject(row_json, key, cJSON_CreateRaw(data));
-                } else {
-                    cJSON_AddItemToObject(row_json, key, cJSON_CreateString(data));
-                }
-#else
                 cJSON_AddItemToObject(row_json, key, cJSON_CreateString(data));
-#endif
             }
         }
         cJSON_AddItemToArray(rows_json, row_json);
@@ -62,6 +41,49 @@ cJSON *create_table_json(PsvTable *table) {
     cJSON *rows_json = create_table_rows_json(table);
     cJSON_AddItemToObject(table_json, "rows", rows_json);
     return table_json;
+}
+
+static char *getDefaultTableID(char *defaultTableID, size_t maxLen, unsigned int tablePosition) {
+    snprintf(defaultTableID, PSV_TABLE_ID_MAX, "table%d", tablePosition);
+    return defaultTableID;
+}
+
+unsigned int parse_table_to_json_from_stream(FILE* input_stream, FILE* output_stream, unsigned int tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
+    char defaultTableID[PSV_TABLE_ID_MAX];
+    unsigned int tableCount = 0;
+    PsvTable *table = NULL;
+    cJSON *table_json = NULL;
+
+    while ((table = psv_parse_table(input_stream, getDefaultTableID(defaultTableID, PSV_TABLE_ID_MAX, tallyCount + 1))) != NULL) {
+
+        if ((pos_selector > 0) && (pos_selector != (tallyCount + 1))){
+            // Select By Table Position mode was enabled, check if table position was reached
+            psv_free_table(table);
+            continue;
+        } else if ((id_selector != NULL) && (strcmp(table->id, id_selector) != 0)) {
+            // Select By String ID mode was enabled, check if table ID matches
+            psv_free_table(table);
+            continue;
+        }
+
+        cJSON *table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
+        char *json_string = cJSON_PrintUnformatted(table_json);
+        fprintf(output_stream, "%s\n", json_string);
+        free(json_string);
+        cJSON_Delete(table_json);
+
+        psv_free_table(table);
+
+        tallyCount = tallyCount + 1;
+        tableCount++;
+
+        // Check if in single table search mode
+        if ((pos_selector > 0) || (id_selector != NULL)) {
+            break;
+        }
+    }
+
+    return tableCount;
 }
 
 static void usage(int code) {
@@ -87,12 +109,11 @@ static void usage(int code) {
 int main(int argc, char* argv[]) {
     progname = argv[0];
 
-    bool single_table = false;
     bool compact_mode = false;
 
     int opt;
-    int table_num_sel = 0;
-    char* id = NULL;
+    int pos_selector = 0;
+    char* id_selector = NULL;
     char* output_file = NULL;
 
     static struct option long_options[] = {
@@ -108,16 +129,17 @@ int main(int argc, char* argv[]) {
     while ((opt = getopt_long(argc, argv, "o:i:t:chv", long_options, NULL)) != -1) {
         switch (opt) {
             case 'o':
+                // Set output file
                 output_file = optarg;
                 break;
             case 'i':
-                single_table = true;
-                id = optarg;
+                // ID based single table mode
+                id_selector = optarg;
                 break;
             case 't':
-                single_table = true;
-                table_num_sel = atoi(optarg);
-                if (table_num_sel <= 0) {
+                // Table Position Single Table
+                pos_selector = atoi(optarg);
+                if (pos_selector <= 0) {
                     fprintf(stderr, "-t must be a positive integer\n");
                     usage(1);
                 }
@@ -155,83 +177,31 @@ int main(int argc, char* argv[]) {
     }
 
     // Process input files
-    unsigned int tableCount = 0;
-    bool foundSingleTable = false;
+    unsigned int tallyCount = 0;
+    unsigned int tablePosition = 0;
     if (optind < argc) {
-        for (int i = optind; i < argc && !foundSingleTable; i++) {
+        for (int i = optind; i < argc; i++) {
             FILE* input_file = fopen(argv[i], "r");
             if (!input_file) {
                 fprintf(stderr, "Error: Cannot open file '%s' for reading.\n", argv[i]);
                 exit(1);
             }
 
-            PsvTable *table = NULL;
-            cJSON *table_json = NULL;
-            while ((table = psv_parse_table(input_file, &tableCount)) != NULL && !foundSingleTable) {
-                if (single_table) {
-                    if (table_num_sel > 0) {
-                        // Select By Table Position
-                        if (table_num_sel == tableCount) {
-                            table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
-                            foundSingleTable = true; // Set flag to exit loop
-                        }
-                    } else {
-                        // Select By String ID
-                        if (strcmp(table->id, id) == 0) {
-                            table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
-                            foundSingleTable = true; // Set flag to exit loop
-                        }
-                    }
-                } else {
-                    table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
-                }
+            tallyCount += parse_table_to_json_from_stream(input_file, output_stream, tallyCount, pos_selector, id_selector, compact_mode);
 
-                if (table_json) {
-                    char *json_string = cJSON_PrintUnformatted(table_json);
-                    fprintf(output_stream, "%s\n", json_string);
-                    free(json_string);
-                    cJSON_Delete(table_json);
+            // Table Found?
+            if (tallyCount > 0) {
+                // Check if in single table search mode
+                if ((pos_selector > 0) || (id_selector != NULL)) {
+                    break;
                 }
-
-                psv_free_table(table);
-                free(table);
             }
 
             fclose(input_file);
         }
     } else {
         // No input files provided, read from stdin
-        PsvTable *table = NULL;
-        cJSON *table_json = NULL;
-        while ((table = psv_parse_table(stdin, &tableCount)) != NULL && !foundSingleTable) {
-            if (single_table) {
-                if (table_num_sel > 0) {
-                    // Select By Table Position
-                    if (table_num_sel == tableCount) {
-                        table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
-                        foundSingleTable = true; // Set flag to exit loop
-                    }
-                } else {
-                    // Select By String ID
-                    if (strcmp(table->id, id) == 0) {
-                        table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
-                        foundSingleTable = true; // Set flag to exit loop
-                    }
-                }
-            } else {
-                table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
-            }
-
-            if (table_json) {
-                char *json_string = cJSON_PrintUnformatted(table_json);
-                fprintf(output_stream, "%s\n", json_string);
-                free(json_string);
-                cJSON_Delete(table_json);
-            }
-
-            psv_free_table(table);
-            free(table);
-        }
+        parse_table_to_json_from_stream(stdin, output_stream, tallyCount, pos_selector, id_selector, compact_mode);
     }
 
     if (output_file) {
