@@ -10,19 +10,24 @@
 
 static const char* progname;
 
+// Create JSON object of a single tabular row
+cJSON *create_table_single_row_json(PsvTable *table, char **data_row_entry) {
+    cJSON *single_row_json = cJSON_CreateObject();
+    for (int j = 0; j < table->num_headers; j++) {
+        const char *key = table->headers[j];
+        const char *data = data_row_entry[j];
+        if (data) {
+            cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
+        }
+    }
+    return single_row_json;
+}
+
 // Create JSON array of table rows
 cJSON *create_table_rows_json(PsvTable *table) {
     cJSON *rows_json = cJSON_CreateArray();
     for (int i = 0; i < table->num_data_rows; i++) {
-        cJSON *row_json = cJSON_CreateObject();
-        for (int j = 0; j < table->num_headers; j++) {
-            const char *key = table->headers[j];
-            const char *data = table->data_rows[i][j];
-            if (data) {
-                cJSON_AddItemToObject(row_json, key, cJSON_CreateString(data));
-            }
-        }
-        cJSON_AddItemToArray(rows_json, row_json);
+        cJSON_AddItemToArray(rows_json, create_table_single_row_json(table, table->data_rows[i]));
     }
     return rows_json;
 }
@@ -58,11 +63,11 @@ unsigned int parse_table_to_json_from_stream(FILE* input_stream, FILE* output_st
 
         if ((pos_selector > 0) && (pos_selector != (tallyCount + 1))){
             // Select By Table Position mode was enabled, check if table position was reached
-            psv_free_table(table);
+            psv_free_table(&table);
             continue;
         } else if ((id_selector != NULL) && (strcmp(table->id, id_selector) != 0)) {
             // Select By String ID mode was enabled, check if table ID matches
-            psv_free_table(table);
+            psv_free_table(&table);
             continue;
         }
 
@@ -72,7 +77,7 @@ unsigned int parse_table_to_json_from_stream(FILE* input_stream, FILE* output_st
         free(json_string);
         cJSON_Delete(table_json);
 
-        psv_free_table(table);
+        psv_free_table(&table);
 
         tallyCount = tallyCount + 1;
         tableCount++;

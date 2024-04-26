@@ -78,7 +78,7 @@ static void parse_consistent_attribute_syntax_id(const char *buffer, PsvTable *t
 }
 
 // Free Memory Allocation For A Table
-void psv_free_table(PsvTable *table) {
+static void psv_clear_table(PsvTable *table) {
 
     // Free Tabular Header
     if (table->headers) {
@@ -104,30 +104,33 @@ void psv_free_table(PsvTable *table) {
         table->data_rows = NULL;
     }
 
-    // Reset Metadata
-    table->num_data_rows = 0;
-    table->num_headers = 0;
-
-    free(table);
+    // Zero out all state and variables
+    *table = (PsvTable){0};
 }
 
-// Grab A Table From A Stream Input
-PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
-    typedef enum {
-        SCANNING,
-        POTENTIAL_HEADER,
-        DATA
-    } State;
+// Free Memory Allocation For A Table
+void psv_free_table(PsvTable **tablePtr) {
 
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    State state = SCANNING;
+    // Free and Clear internal content of the table
+    psv_clear_table(*tablePtr);
+
+    // Finally, free the memory allocated for the table structure itself
+    free(*tablePtr);
+
+    // Set the pointer to NULL in the caller's scope so other parts of the problem knows it's empty
+    *tablePtr = NULL;
+}
+
+PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
     PsvTable *table = malloc(sizeof(PsvTable));
     *table = (PsvTable){0};
 
+    ssize_t read;
+    char *line = NULL;
+    size_t len = 0;
     while ((read = getline(&line, &len, input)) != -1) {
-        if (state == SCANNING) {
+        switch (table->parsing_state) {
+        case PSV_PARSING_SCANNING:
             if (line[0] == '{') {
                 // Parse Consistent attribute syntax https://talk.commonmark.org/t/consistent-attribute-syntax/272
 
@@ -144,20 +147,8 @@ PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
                 }
 
                 size_t str_line = strlen(line + 1);
-
                 if (!closing_bracket && str_line == 0) {
                     continue;
-                }
-
-                // Parse table ID anchor
-                // TODO: Capture `.class`, `key=value` and `key="value"`
-                char *hashPos = line + 1;
-                while (*hashPos != '\0' && *hashPos != '#') {
-                    if (*hashPos == ' ') {
-                        hashPos++;
-                    } else {
-                        break;
-                    }
                 }
 
                 parse_consistent_attribute_syntax_id(trim_whitespace(line + 1), table);
@@ -185,21 +176,23 @@ PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
 
                 // Check if at least one header field is detected
                 if (table->num_headers > 0) {
-                    state = POTENTIAL_HEADER;
+                    table->parsing_state = PSV_PARSING_POTENTIAL_HEADER;
                     if (table->id[0] == '\0') {
                         strcpy(table->id, defaultTableID);
                     }
                 } else {
-                    psv_free_table(table);
+                    psv_clear_table(table);
                 }
             } else {
                 // Not a table header
 
-                // Free table in case we found Consistent Attribute Syntax but no table
+                // Clear table in case we found Consistent Attribute Syntax but no table
                 // Since it might be for a different block instead
-                psv_free_table(table);
+                psv_clear_table(table);
             }
-        } else if (state == POTENTIAL_HEADER) {
+            break;
+        
+        case PSV_PARSING_POTENTIAL_HEADER:
             // Check if actual header by checking if there is enough '|---|'
             if (line[0] == '|') {
                 // Trim '|' on right hand side
@@ -224,59 +217,96 @@ PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
                 if (table->num_headers == num_header_separators) {
                     // It's most likely a markdown table
                     // We can now safely start parsing the data rows
-                    state = DATA;
+                    table->parsing_state = PSV_PARSING_DATA_ROW;
                 } else {
                     // Mismatch with headers, free the allocated memory
-                    state = SCANNING;
-                    psv_free_table(table);
+                    table->parsing_state = PSV_PARSING_SCANNING;
+                    psv_clear_table(table);
                 }
             }
-        } else if (state == DATA) {
-            if (line[0] == '|') {
-                // Trim '|' on right hand side
-                for (int i = read - 1; i > 0; i--) {
-                    if (line[i] == '|') {
-                        line[i] = '\0';
-                        break;
-                    }
-                }
+            break;
+        case PSV_PARSING_DATA_ROW:
+            break;
+        case PSV_PARSING_END:
+            break;
+        }
 
-                // Add a new row
-                table->data_rows = realloc(table->data_rows, (table->num_data_rows + 1) * sizeof(char **));
-                table->data_rows[table->num_data_rows] = malloc(table->num_headers * sizeof(char *));
-                for (int i = 0 ; i < table->num_headers ; i++) {
-                    // Set every header data entry in a row to NULL
-                    // (This is to tell valgrind that we intentionally want each entry as empty in case of missing entries)
-                    table->data_rows[table->num_data_rows][i] = NULL;
-                }
+        if (table->parsing_state == PSV_PARSING_DATA_ROW) {
+            break;
+        }
+    }
 
-                // Split and Cache data row
-                char *tokenization_state = NULL;
-                int num_data_col = 0;
-                char *token;
-                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
-                    table->data_rows[table->num_data_rows][num_data_col] = malloc((strlen(token) + 1) * sizeof(char));
-                    strcpy(table->data_rows[table->num_data_rows][num_data_col], trim_whitespace(token));
-                    num_data_col++;
-                }
+    if (table->parsing_state != PSV_PARSING_DATA_ROW) {
+        psv_free_table(&table);
+    }
 
-                // Keep track of data row
-                table->num_data_rows++;
-            } else {
-                // End of Table detected
-                break;
+    // Release getline's buffer
+    free(line);
+    return table;
+}
+
+char **psv_parse_table_row(FILE *input, PsvTable *table) {
+
+    // Cannot return row if not in data row parsing state
+    if (table->parsing_state != PSV_PARSING_DATA_ROW)
+        return NULL;
+
+    char **data_row = NULL;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    if ((read = getline(&line, &len, input)) != -1) {
+        if (line[0] == '|') {
+            // Trim '|' on right hand side
+            for (int i = read - 1; i > 0; i--) {
+                if (line[i] == '|') {
+                    line[i] = '\0';
+                    break;
+                }
             }
+
+            // Add a new row and prefill with NULL
+            data_row = malloc(table->num_headers * sizeof(char *));
+            for (int i = 0 ; i < table->num_headers ; i++) {
+                // Set every header data entry in a row to NULL
+                // (This is to tell valgrind that we intentionally want each entry as empty in case of missing entries)
+                data_row[i] = NULL;
+            }
+
+            // Split and record each cell
+            char *tokenization_state = NULL;
+            for (int i = 0 ; i < table->num_headers ; i++) {
+                char *token = tokenize_escaped_delim(line + 1, '|', &tokenization_state);
+
+                if (token == NULL)
+                    break;
+
+                data_row[i] = malloc((strlen(token) + 1) * sizeof(char));
+                strcpy(data_row[i], trim_whitespace(token));
+            }
+        } else {
+            // End of Table detected
+            table->parsing_state = PSV_PARSING_END;
         }
     }
 
     // Release getline's buffer
     free(line);
+    return data_row;
+}
 
-    // Check if we have a table to return to caller
-    if (state != DATA)
-    {
-        psv_free_table(table);
+// Grab A Table From A Stream Input
+PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
+    PsvTable *table = psv_parse_table_header(input, defaultTableID);
+    if (table == NULL) {
         return NULL;
+    }
+
+    char **data_row = NULL;
+    while ((data_row = psv_parse_table_row(input, table)) != NULL) {
+        table->data_rows = realloc(table->data_rows, (table->num_data_rows + 1) * sizeof(char **));
+        table->data_rows[table->num_data_rows] = data_row;
+        table->num_data_rows++;
     }
 
     return table;
