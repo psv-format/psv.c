@@ -3,9 +3,19 @@ AC_INIT([psv], [program_version])
 AC_PREREQ([2.65]) # Minimum version number for autoconf build system
 AC_CONFIG_SRCDIR([src/main.c]) # Ensure the main source file exists
 AC_CONFIG_HEADERS([src/config.h:config_h.in]) # Generate config header
-AC_CONFIG_AUX_DIR([build-aux]) # Put autotools auxiliary files into a seperate dir to reduce clutter
-AC_CONFIG_MACRO_DIRS([m4]) # Put autotools M4 macros files into a seperate dir to reduce clutter
+AC_CONFIG_AUX_DIR([build-aux]) # Put autotools auxiliary files into a separate dir to reduce clutter
+AC_CONFIG_MACRO_DIRS([m4]) # Put autotools M4 macros files into a separate dir to reduce clutter
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects]) # Initialize Automake with options
+
+# Check for libcurl to enable support for HTTP requests handling (for Doxygen documentation)
+# This is particularly useful for generating Doxygen documentation by fetching remote source files or documentation from online repositories.
+AC_CHECK_LIB([curl], [curl_easy_init], [
+	AC_DEFINE([HAVE_LIBCURL], [1], [Define if libcurl is available to enable support for HTTP requests handling])
+	LIBS="$LIBS -lcurl"
+], [
+	AC_MSG_ERROR([libcurl not found. Please install libcurl-dev package.])
+])
+
 AC_CONFIG_FILES([Makefile]) # Specify Makefile generation for main directory and src directory
 AC_PROG_CC # Find and set up C compiler
 AC_OUTPUT # Generate output files

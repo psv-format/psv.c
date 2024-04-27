@@ -8,3 +8,14 @@ unit_test_SOURCES = tests/unit_test.c
 # -I m4: Include the m4 directory for additional macros.
 # --install: Automatically install missing macros into the system-wide directory.
 ACLOCAL_AMFLAGS = -I m4 --install
+
+# Add a target to generate Doxygen documentation
+doxygen:
+	doxygen Doxyfile
+
+# Define a phony target for cleaning Doxygen documentation
+clean-doxygen:
+	rm -rf docs
+
+# Add Doxygen to the list of targets to be built
+all-local: doxygen
