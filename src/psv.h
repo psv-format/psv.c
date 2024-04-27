@@ -18,8 +18,11 @@ typedef enum {
 typedef struct {
     PsvParsingState parsing_state;
     char id[PSV_TABLE_ID_MAX + 1];
+
     int num_headers;
     char **headers;
+    char **json_keys;
+
     int num_data_rows;
     char ***data_rows;
 } PsvTable;

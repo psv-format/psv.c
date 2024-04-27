@@ -5,6 +5,65 @@
 
 #include "psv.h"
 
+/**
+ * @brief Generates a JSON key from a header string.
+ * 
+ * This function generates a JSON key from a given header string, 
+ * ensuring that the key is valid and follows certain conventions.
+ * 
+ * @param header The header string from which to generate the JSON key.
+ * @param jsonKeyBuffer A buffer to store the generated JSON key.
+ * @param bufferSize The size of the jsonKeyBuffer.
+ * 
+ * @return A pointer to the generated JSON key string.
+ * 
+ * @remarks The generated JSON key will be stored in jsonKeyBuffer. 
+ *          The function ensures that the generated key is valid and 
+ *          follows certain conventions:
+ *          - Special characters and spaces are replaced with underscores.
+ *          - Only one underscore is allowed between words.
+ *          - The generated key does not start or end with an underscore.
+ *          - If bufferSize is insufficient to store the entire key, 
+ *            the key will be truncated to fit within the buffer size.
+ */
+static char* generateJSONKey(const char* header, char* jsonKeyBuffer, size_t bufferSize) {
+    char* writePtr = jsonKeyBuffer;
+
+    // Iterate through the header
+    for (int i = 0; header[i] != '\0' && bufferSize > 1; i++) {
+        char c = header[i];
+        
+        // Break if parentheses, brackets, or braces are found
+        if (c == '(' || c == '[' || c == '{')
+            break;
+
+        // Convert to lowercase
+        c = tolower(c);
+
+        // Replace special characters and spaces with underscores
+        if (!isalnum(c) && c != '_')
+            c = '_';
+
+        // Ensure only one underscore between words and that we don't start with underscore
+        if (c == '_' && ((writePtr == NULL || writePtr[-1] == '_') || (writePtr == jsonKeyBuffer)))
+            continue;
+
+        *writePtr++ = c;
+        bufferSize--;
+    }
+
+    // Remove trailing underscore, if any
+    if (writePtr > 0 && *(writePtr - 1) == '_') {
+        // Trailing _ found, end the string at the _
+        *(writePtr - 1) = '\0';
+    } else {
+        // No trailing _ found, just end the string normally
+        *writePtr = '\0';
+    }
+
+    return jsonKeyBuffer;
+}
+
 static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_state) {
     if (str == NULL)
         return NULL;
@@ -90,6 +149,16 @@ static void psv_clear_table(PsvTable *table) {
         table->headers = NULL;
     }
 
+    // Free JSON keys Header
+    if (table->json_keys) {
+        for (int i = 0; i < table->num_headers; i++) {
+            free(table->json_keys[i]);
+            table->json_keys[i] = NULL;
+        }
+        free(table->json_keys);
+        table->json_keys = NULL;
+    }
+
     // Free Tabular Data
     if (table->data_rows) {
         for (int i = 0; i < table->num_data_rows; i++) {
@@ -169,8 +238,17 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                 char *token;
                 while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
                     table->headers = realloc(table->headers, (table->num_headers + 1) * sizeof(char *));
-                    table->headers[table->num_headers] = malloc((strlen(token) + 1) * sizeof(char));
-                    strcpy(table->headers[table->num_headers], trim_whitespace(token));
+                    table->json_keys = realloc(table->json_keys, (table->num_headers + 1) * sizeof(char *));
+
+                    const char * full_header = trim_whitespace(token);
+                    const unsigned long full_header_buffer_size = strlen(token) + 1;
+
+                    table->headers[table->num_headers] = malloc((full_header_buffer_size) * sizeof(char));
+                    strcpy(table->headers[table->num_headers], full_header);
+
+                    table->json_keys[table->num_headers] = malloc((full_header_buffer_size) * sizeof(char));
+                    generateJSONKey(full_header, table->json_keys[table->num_headers], full_header_buffer_size);
+
                     table->num_headers++;
                 }
 
