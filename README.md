@@ -56,7 +56,7 @@ To parse Markdown tables from standard input:
 
 ```bash
 make && ./psv << 'HEREDOC'
-| Name    | Age | City         |
+| Name    | Age (Years) | City Name |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
@@ -76,8 +76,8 @@ HEREDOC
 The above command would give a response that may look like below
 
 ```json
-{"id":"table1","headers":["Name","Age","City"],"rows":[{"Name":"Alice","Age":"25","City":"New York"},{"Name":"Bob","Age":"32.4","City":"San Francisco"},{"Name":"Bob","Age":"32"},{"Name":"Charlie","Age":"19","City":"London"}]}
-{"id":"test2","headers":["Name","Age","City"],"rows":[{"Name":"Alice","Age":"25","City":"New York"},{"Name":"Bob","Age":"32","City":"San Francisco"},{"Name":"Bob","Age":"32","City":"Melbourne"},{"Name":"Charlie","Age":"19","City":"London"}]}
+{"id":"table1","headers":["Name","Age (Years)","City Name"],"keys":["name","age","city_name"],"rows":[{"name":"Alice","age":"25","city_name":"New York"},{"name":"Bob","age":"32.4","city_name":"San Francisco"},{"name":"Bob","age":"32"},{"name":"Charlie","age":"19","city_name":"London"}]}
+{"id":"test2","headers":["Name","Age","City"],"keys":["name","age","city"],"rows":[{"name":"Alice","age":"25","city":"New York"},{"name":"Bob","age":"32","city":"San Francisco"},{"name":"Bob","age":"32","city":"Melbourne"},{"name":"Charlie","age":"19","city":"London"}]}
 ```
 
 There is also a compact mode
@@ -104,8 +104,8 @@ HEREDOC
 which has a more compact representation
 
 ```json
-[{"Name":"Alice","Age":"25","City":"New York"},{"Name":"Bob","Age":"32.4","City":"San Francisco"},{"Name":"Bob","Age":"32"},{"Name":"Charlie","Age":"19","City":"London"}]
-[{"Name":"Alice","Age":"25","City":"New York"},{"Name":"Bob","Age":"32","City":"San Francisco"},{"Name":"Bob","Age":"32","City":"Melbourne"},{"Name":"Charlie","Age":"19","City":"London"}]
+[{"name":"Alice","age":"25","city":"New York"},{"name":"Bob","age":"32.4","city":"San Francisco"},{"name":"Bob","age":"32"},{"name":"Charlie","age":"19","city":"London"}]
+[{"name":"Alice","age":"25","city":"New York"},{"name":"Bob","age":"32","city":"San Francisco"},{"name":"Bob","age":"32","city":"Melbourne"},{"name":"Charlie","age":"19","city":"London"}]
 ```
 
 Finally you can select table by ID
@@ -130,10 +130,13 @@ make && ./psv --id dog -c << 'HEREDOC'
 HEREDOC
 ```
 
-Which would output just the table marked as dog
+Which would output just the table marked as dog. Note that because we are in single table and compact row mode, this program will switch to row streaming mode. This allows for streaming very very large files with lots and lots of rows.
 
 ```json
-[{"Name":"Alice","Age":"25","City":"New York"},{"Name":"Bob","Age":"32","City":"San Francisco"},{"Name":"Bob","Age":"32","City":"Melbourne"},{"Name":"Charlie","Age":"19","City":"London"}]
+{"name":"Alice","age":"25","city":"New York"}
+{"name":"Bob","age":"32","city":"San Francisco"}
+{"name":"Bob","age":"32","city":"Melbourne"}
+{"name":"Charlie","age":"19","city":"London"}
 ```
 
 To specify an output file:
@@ -156,7 +159,23 @@ make && ./psv -o test.json testdoc.md
 You can pipe results from psv into jq
 
 ```bash
-make && ./psv -t 1 -c << 'HEREDOC' | jq
+make && ./psv --id dog << 'HEREDOC' | jq
+{#dog}
+| Name    | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
+HEREDOC
+```
+
+or
+
+
+```bash
+make && ./psv -t 1 << 'HEREDOC' | jq
+{#dog}
 | Name    | Age | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
@@ -169,34 +188,48 @@ HEREDOC
 Which would result in a pretty printed output by jq
 
 ```json
-[
-  {
-    "Name": "Alice",
-    "Age": "25",
-    "City": "New York"
-  },
-  {
-    "Name": "Bob",
-    "Age": "32",
-    "City": "San Francisco"
-  },
-  {
-    "Name": "Bob",
-    "Age": "32",
-    "City": "Melbourne"
-  },
-  {
-    "Name": "Charlie",
-    "Age": "19",
-    "City": "London"
-  }
-]
+{
+  "id": "dog",
+  "headers": [
+    "Name",
+    "Age",
+    "City"
+  ],
+  "keys": [
+    "name",
+    "age",
+    "city"
+  ],
+  "rows": [
+    {
+      "name": "Alice",
+      "age": "25",
+      "city": "New York"
+    },
+    {
+      "name": "Bob",
+      "age": "32",
+      "city": "San Francisco"
+    },
+    {
+      "name": "Bob",
+      "age": "32",
+      "city": "Melbourne"
+    },
+    {
+      "name": "Charlie",
+      "age": "19",
+      "city": "London"
+    }
+  ]
+}
 ```
 
 You can also output csv by piping though jq
 
 ```bash
-./psv -t 1 -c << 'HEREDOC' | jq -r '.[] | [.Name, .Age, .City] | @csv'
+make && ./psv --id dog -c << 'HEREDOC' | jq -r '.[] | [.Name, .Age, .City] | @csv'
+{#dog}
 | Name    | Age | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
