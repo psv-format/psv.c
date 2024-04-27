@@ -228,7 +228,7 @@ Which would result in a pretty printed output by jq
 You can also output csv by piping though jq
 
 ```bash
-make && ./psv --id dog -c << 'HEREDOC' | jq -r '.[] | [.Name, .Age, .City] | @csv'
+make && ./psv --id dog -c << 'HEREDOC' | jq -r 'map(.) | @csv'
 {#dog}
 | Name    | Age | City         |
 | ------- | --- | ------------ |
