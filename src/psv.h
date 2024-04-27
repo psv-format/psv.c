@@ -4,6 +4,9 @@
 
 #define PSV_TABLE_ID_MAX 255
 
+typedef char** PsvDataRow;
+typedef char*** PsvDataRows;
+
 // PSV Line Parsing State
 typedef enum {
     PSV_PARSING_SCANNING = 0,
@@ -11,7 +14,6 @@ typedef enum {
     PSV_PARSING_DATA_ROW,
     PSV_PARSING_END,
 } PsvParsingState;
-
 
 typedef struct {
     PsvParsingState parsing_state;
@@ -26,7 +28,9 @@ void psv_free_table(PsvTable **tablePtr);
 
 PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID);
 
-char **psv_parse_table_row(FILE *input, PsvTable *table);
+PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table);
+void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr);
+bool psv_parse_skip_table_row(FILE *input, PsvTable *table);
 
 PsvTable *psv_parse_table(FILE *input, char *defaultTableID);
 

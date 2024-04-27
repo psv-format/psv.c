@@ -231,6 +231,11 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
             break;
         }
 
+        // Release getline's buffer
+        free(line);
+        line = NULL;
+        len = 0;
+
         if (table->parsing_state == PSV_PARSING_DATA_ROW) {
             break;
         }
@@ -245,13 +250,13 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
     return table;
 }
 
-char **psv_parse_table_row(FILE *input, PsvTable *table) {
+PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
 
     // Cannot return row if not in data row parsing state
     if (table->parsing_state != PSV_PARSING_DATA_ROW)
         return NULL;
 
-    char **data_row = NULL;
+    PsvDataRow data_row = NULL;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
@@ -277,7 +282,6 @@ char **psv_parse_table_row(FILE *input, PsvTable *table) {
             char *tokenization_state = NULL;
             for (int i = 0 ; i < table->num_headers ; i++) {
                 char *token = tokenize_escaped_delim(line + 1, '|', &tokenization_state);
-
                 if (token == NULL)
                     break;
 
@@ -289,10 +293,45 @@ char **psv_parse_table_row(FILE *input, PsvTable *table) {
             table->parsing_state = PSV_PARSING_END;
         }
     }
-
+    
     // Release getline's buffer
     free(line);
     return data_row;
+}
+
+void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr) {
+    PsvDataRow data_row = *dataRowPtr;
+    // Free Rows
+    for (int j = 0; j < table->num_headers; j++) {
+        free(data_row[j]);
+        data_row[j] = NULL;
+    }
+    free(*dataRowPtr);
+    *dataRowPtr = NULL;
+}
+
+bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
+
+    // Cannot return row if not in data row parsing state
+    if (table->parsing_state != PSV_PARSING_DATA_ROW)
+        return NULL;
+
+    bool row_found = false;
+    char *line = NULL;
+    size_t len = 0;
+    if (getline(&line, &len, input) != -1) {
+        if (line[0] == '|') {
+            // Is a data row
+            row_found = true;
+        } else {
+            // End of Table detected
+            table->parsing_state = PSV_PARSING_END;
+        }
+    }
+
+    // Release getline's buffer
+    free(line);
+    return row_found;
 }
 
 // Grab A Table From A Stream Input
