@@ -64,6 +64,36 @@ static char* generateJSONKey(const char* header, char* jsonKeyBuffer, size_t buf
     return jsonKeyBuffer;
 }
 
+/**
+ * @brief Tokenizes a string using an escaped delimiter.
+ * 
+ * This function tokenizes a string using a specified delimiter, 
+ * while handling escaped delimiters within the string.
+ * 
+ * @param str The string to be tokenized.
+ * @param delim The delimiter character used for tokenization.
+ * @param tokenization_state A pointer to the tokenization state. 
+ *                           Pass NULL to start tokenization from the beginning of the string, 
+ *                           and pass the previous tokenization state for subsequent calls 
+ *                           to continue tokenization from where it left off.
+ * 
+ * @return A pointer to the next token in the string, or NULL if no more tokens are found.
+ * 
+ * @remarks This function tokenizes the input string by searching for the specified delimiter.
+ *          It handles escaped delimiters within the string, allowing them to be treated as 
+ *          regular characters rather than delimiters. 
+ *          The tokenization_state parameter is used to maintain the state of tokenization 
+ *          across multiple calls to the function. Pass NULL to start tokenization from the 
+ *          beginning of the string, and pass the previous tokenization state returned by 
+ *          the function for subsequent calls to continue tokenization from where it left off.
+ *          The function modifies the input string by replacing delimiters with null terminators 
+ *          to create separate tokens. It also updates the tokenization_state to indicate 
+ *          the position in the string where tokenization stopped.
+ *          If no more tokens are found in the string, the function returns NULL.
+ * 
+ * @note The input string is modified by this function. Make sure to pass a writable string 
+ *       or create a copy of the original string if needed.
+ */
 static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_state) {
     if (str == NULL)
         return NULL;
@@ -73,9 +103,7 @@ static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_s
 
     while (*token_end != '\0') {
         if (*token_end == '\\') {
-            if (*(token_end + 1) == '\\'
-                || *(token_end + 1) == delim
-                || ispunct(*(token_end + 1))) {
+            if (*(token_end + 1) == '\\' || *(token_end + 1) == delim || ispunct(*(token_end + 1))) {
                 // Handle escaped backslash, delimiter and punctuation
                 memmove(token_end, token_end + 1, strlen(token_end + 1) + 1);
                 token_end++;
@@ -96,6 +124,19 @@ static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_s
     return token_start;
 }
 
+/**
+ * @brief Trims leading and trailing whitespace from a string.
+ * 
+ * This function trims leading and trailing whitespace characters (spaces, tabs, newlines, etc.) 
+ * from a given string, modifying the string in-place.
+ * 
+ * @param str The string to be trimmed.
+ * 
+ * @return A pointer to the trimmed string.
+ * 
+ * @note The input string is modified by this function. Make sure to pass a writable string 
+ *       or create a copy of the original string if needed.
+ */
 static char *trim_whitespace(char *str) {
     // Trim leading space
     while (isspace((unsigned char)*str)) {
@@ -114,20 +155,43 @@ static char *trim_whitespace(char *str) {
     return str;
 }
 
+/**
+ * @brief Parses the table ID from the consistent attribute syntax within a table block.
+ * 
+ * This function extracts the table ID from the consistent attribute syntax within a table block,
+ * allowing the table to be identified later. The table ID is typically specified using the
+ * `#{id}` syntax at the beginning of the table block.
+ * 
+ * @param buffer A string buffer containing the internal content of the table block.
+ *               The buffer should already have the outer `{}` removed.
+ * @param table A pointer to the PsvTable structure where the extracted ID will be stored.
+ * 
+ * @remarks This function expects the consistent attribute syntax to be present within the table block.
+ *          It searches for the table ID specified using the `#{id}` syntax at the beginning of the block.
+ *          The function assumes that the ID is always placed at the beginning of the block for simplicity.
+ *          If the ID is found, it is copied into the `id` field of the PsvTable structure.
+ * 
+ * @note The input buffer should contain the internal content of the table block without the outer `{}`.
+ *       The `table` parameter should point to a valid PsvTable structure where the extracted ID will be stored.
+ *       This function does not handle scenarios where the table ID is placed later in the block.
+ *       It prioritizes simplicity over robustness and may miss the ID if it is not located at the beginning.
+ */
 static void parse_consistent_attribute_syntax_id(const char *buffer, PsvTable *table) {
+    // Iterate through the buffer until '#' or end of string is found
     while (*buffer != '\0' && *buffer != '#') {
         if (*buffer == ' ') {
-            buffer++;
+            buffer++; // Skip leading spaces
         } else {
-            // ID must be in front of all other class or key:value
+            // ID must be in front of all other attributes or classes
             return;
         }
     }
+
+    // If '#' is found, extract the ID
     if (*buffer == '#') {
-        // ID found
         buffer++; // Move past the '#' character
-        // Copy the ID until a space or '}' is encountered
         int i = 0;
+        // Copy the ID until a space or '}' is encountered
         while ((i < PSV_TABLE_ID_MAX) && (*buffer != '\0') && *buffer != ' ' && *buffer != '}') {
             table->id[i] = *buffer++;
             i++;
@@ -136,7 +200,15 @@ static void parse_consistent_attribute_syntax_id(const char *buffer, PsvTable *t
     }
 }
 
-// Free Memory Allocation For A Table
+/**
+ * @brief Frees memory allocated for a PsvTable structure.
+ * 
+ * This function deallocates memory associated with the headers, JSON keys,
+ * and data rows of a PsvTable structure, and zeroes out the table's state
+ * and variables.
+ * 
+ * @param table A pointer to the PsvTable structure to be cleared.
+ */
 static void psv_clear_table(PsvTable *table) {
 
     // Free Tabular Header
@@ -177,7 +249,19 @@ static void psv_clear_table(PsvTable *table) {
     *table = (PsvTable){0};
 }
 
-// Free Memory Allocation For A Table
+/**
+ * @brief Frees memory allocated for a PsvTable structure and sets the pointer to NULL.
+ * 
+ * This function deallocates memory associated with the headers, JSON keys,
+ * and data rows of a PsvTable structure, zeroes out the table's state and variables,
+ * and then frees the memory allocated for the table structure itself. Additionally,
+ * it sets the pointer to NULL in the caller's scope, indicating that the table is
+ * no longer valid and preventing further access to its contents.
+ * 
+ * @param tablePtr A pointer to a pointer to the PsvTable structure to be freed.
+ *                 After freeing the memory, this function sets the pointer to NULL
+ *                 to indicate that the table is empty.
+ */
 void psv_free_table(PsvTable **tablePtr) {
 
     // Free and Clear internal content of the table
@@ -190,14 +274,33 @@ void psv_free_table(PsvTable **tablePtr) {
     *tablePtr = NULL;
 }
 
+/**
+ * @brief Parses a table header from a file stream and constructs a PsvTable structure.
+ * 
+ * This function reads lines from the input file stream and parses a table header in 
+ * Markdown format. It constructs a PsvTable structure containing the table headers 
+ * and their corresponding JSON keys. The function supports parsing consistent attribute 
+ * syntax for table IDs and handles various edge cases to determine the parsing state.
+ * 
+ * @param input The file stream from which to read the table header.
+ * @param defaultTableID The default ID to assign to the table if no ID is specified.
+ * @return A pointer to the PsvTable structure containing the parsed table header,
+ *         or NULL if no valid table header is found or an error occurs.
+ */
 PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
+
+    // Allocate memory for the table structure
     PsvTable *table = malloc(sizeof(PsvTable));
     *table = (PsvTable){0};
 
+    // Variables for reading lines from input stream
     ssize_t read;
     char *line = NULL;
     size_t len = 0;
+
+    // Loop through lines in the input stream
     while ((read = getline(&line, &len, input)) != -1) {
+        // Determine parsing state based on table content
         switch (table->parsing_state) {
         case PSV_PARSING_SCANNING:
             if (line[0] == '{') {
@@ -309,38 +412,58 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
             break;
         }
 
-        // Release getline's buffer
+        // Release memory allocated by getline
         free(line);
         line = NULL;
         len = 0;
 
+        // Exit loop if parsing state is PSV_PARSING_DATA_ROW
         if (table->parsing_state == PSV_PARSING_DATA_ROW) {
             break;
         }
     }
 
+    // Free memory allocated by getline
+    free(line);
+
+    // Check parsing state and free table memory if necessary
     if (table->parsing_state != PSV_PARSING_DATA_ROW) {
         psv_free_table(&table);
     }
 
-    // Release getline's buffer
-    free(line);
+    // Return the parsed table
     return table;
 }
 
+/**
+ * @brief Parses a single data row from a file stream and constructs a PsvDataRow.
+ * 
+ * This function reads a line from the input file stream and parses it as a single data row 
+ * of a table in Markdown format. It constructs a PsvDataRow containing the parsed data cells, 
+ * corresponding to the table headers. The function assumes that the table is in the data row 
+ * parsing state and expects the input file stream to contain valid data row lines.
+ * 
+ * @param input The file stream from which to read the data row.
+ * @param table Pointer to the PsvTable structure representing the table.
+ * @return A PsvDataRow containing the parsed data cells of the row, or NULL if the end of the 
+ *         table is reached or an error occurs.
+ */
 PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
 
     // Cannot return row if not in data row parsing state
     if (table->parsing_state != PSV_PARSING_DATA_ROW)
         return NULL;
 
+    // Initialize variables
     PsvDataRow data_row = NULL;
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
+
+    // Read a line from the input stream
     if ((read = getline(&line, &len, input)) != -1) {
         if (line[0] == '|') {
-            // Trim '|' on right hand side
+            // Trim '|' on the right-hand side
             for (int i = read - 1; i > 0; i--) {
                 if (line[i] == '|') {
                     line[i] = '\0';
@@ -348,11 +471,9 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
                 }
             }
 
-            // Add a new row and prefill with NULL
+            // Allocate memory for the data row and initialize with NULL
             data_row = malloc(table->num_headers * sizeof(char *));
             for (int i = 0 ; i < table->num_headers ; i++) {
-                // Set every header data entry in a row to NULL
-                // (This is to tell valgrind that we intentionally want each entry as empty in case of missing entries)
                 data_row[i] = NULL;
             }
 
@@ -363,6 +484,7 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
                 if (token == NULL)
                     break;
 
+                // Allocate memory for each data cell and copy the trimmed token
                 data_row[i] = malloc((strlen(token) + 1) * sizeof(char));
                 strcpy(data_row[i], trim_whitespace(token));
             }
@@ -377,6 +499,16 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
     return data_row;
 }
 
+/**
+ * @brief Frees memory allocated for a single data row of a PsvTable.
+ * 
+ * This function deallocates memory previously allocated for a single data row of a PsvTable,
+ * including the memory for each data cell within the row. It sets the pointers to NULL after
+ * freeing the memory to prevent dangling references.
+ * 
+ * @param table Pointer to the PsvTable structure representing the table.
+ * @param dataRowPtr Pointer to the PsvDataRow to be freed.
+ */
 void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr) {
     PsvDataRow data_row = *dataRowPtr;
     // Free Rows
@@ -384,15 +516,29 @@ void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr) {
         free(data_row[j]);
         data_row[j] = NULL;
     }
+    // Free the data row array itself
     free(*dataRowPtr);
+    // Set the pointer to NULL to avoid dangling references
     *dataRowPtr = NULL;
 }
 
+/**
+ * @brief Skips the current row while parsing a PsvTable.
+ * 
+ * This function reads a line from the input file stream and determines whether it represents a data row
+ * of the table. If the line begins with a '|', it is considered a data row, and the function returns true,
+ * indicating that the row was found and skipped. If the line does not begin with a '|', it signifies the
+ * end of the table, and the function sets the parsing state of the table to indicate the end.
+ * 
+ * @param input Pointer to the input file stream.
+ * @param table Pointer to the PsvTable structure representing the table being parsed.
+ * @return True if a data row was found and skipped, false otherwise.
+ */
 bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
 
     // Cannot return row if not in data row parsing state
     if (table->parsing_state != PSV_PARSING_DATA_ROW)
-        return NULL;
+        return false;
 
     bool row_found = false;
     char *line = NULL;
@@ -412,15 +558,31 @@ bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
     return row_found;
 }
 
-// Grab A Table From A Stream Input
+/**
+ * @brief Parses a table from a stream input.
+ * 
+ * This function parses a table from the specified input file stream. It starts by parsing the table header
+ * to extract metadata and column names. Then, it reads and parses each data row of the table until the end
+ * of the table is reached. Each parsed row is stored in the PsvTable structure.
+ * 
+ * @param input Pointer to the input file stream.
+ * @param defaultTableID Default ID to assign to the table if no ID is specified in the table header.
+ * @return A pointer to the parsed PsvTable structure, or NULL if an error occurred during parsing.
+ */
 PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
+    // Parse the table header to extract metadata and column names
     PsvTable *table = psv_parse_table_header(input, defaultTableID);
+    
+    // If table parsing failed, return NULL
     if (table == NULL) {
         return NULL;
     }
 
     char **data_row = NULL;
+    
+    // Parse each data row of the table until the end of the table is reached
     while ((data_row = psv_parse_table_row(input, table)) != NULL) {
+        // Reallocate memory for data rows and store the parsed row
         table->data_rows = realloc(table->data_rows, (table->num_data_rows + 1) * sizeof(char **));
         table->data_rows[table->num_data_rows] = data_row;
         table->num_data_rows++;
