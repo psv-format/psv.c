@@ -28,7 +28,7 @@ static void parse_table_to_json_from_stream(FILE* input_stream, FILE* output_str
         // Keep track of parsed tables position which is required for table positional selector to function correctly
         *tallyCount = *tallyCount + 1;
 
-        if ((pos_selector > 0) && (pos_selector != (*tallyCount + 1))) {
+        if ((pos_selector > 0) && (pos_selector != *tallyCount)) {
             // Select By Table Position mode was enabled, check if table position was reached
             psv_free_table(&table);
             continue;
@@ -72,7 +72,7 @@ static void parse_singular_table_streaming_rows_to_json_from_stream(FILE* input_
         *tallyCount = *tallyCount + 1;
 
         // Check if we found the table we are looking for
-        if ((pos_selector > 0) && (pos_selector != (*tallyCount + 1))) {
+        if ((pos_selector > 0) && (pos_selector != *tallyCount)) {
             // Select By Table Position mode was enabled, check if table position was reached
             while (psv_parse_skip_table_row(input_stream, table)) {/* Skip Rows */};
             psv_free_table(&table);
