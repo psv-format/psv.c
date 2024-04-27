@@ -5,55 +5,20 @@
 #include <getopt.h>
 
 #include "config.h"
-#include "psv.h"
+
 #include "cJSON.h"
 
+#include "psv.h"
+#include "psv_json.h"
+
 static const char* progname;
-
-// Create JSON object of a single tabular row
-cJSON *create_table_single_row_json(PsvTable *table, char **data_row_entry) {
-    cJSON *single_row_json = cJSON_CreateObject();
-    for (int j = 0; j < table->num_headers; j++) {
-        const char *key = table->headers[j];
-        const char *data = data_row_entry[j];
-        if (data) {
-            cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
-        }
-    }
-    return single_row_json;
-}
-
-// Create JSON array of table rows
-cJSON *create_table_rows_json(PsvTable *table) {
-    cJSON *rows_json = cJSON_CreateArray();
-    for (int i = 0; i < table->num_data_rows; i++) {
-        cJSON_AddItemToArray(rows_json, create_table_single_row_json(table, table->data_rows[i]));
-    }
-    return rows_json;
-}
-
-// Create JSON object representing a table
-cJSON *create_table_json(PsvTable *table) {
-    cJSON *table_json = cJSON_CreateObject();
-    cJSON_AddItemToObject(table_json, "id", cJSON_CreateString(table->id));
-
-    cJSON *headers_json = cJSON_CreateArray();
-    for (int j = 0; j < table->num_headers; j++) {
-        cJSON_AddItemToArray(headers_json, cJSON_CreateString(table->headers[j]));
-    }
-    cJSON_AddItemToObject(table_json, "headers", headers_json);
-
-    cJSON *rows_json = create_table_rows_json(table);
-    cJSON_AddItemToObject(table_json, "rows", rows_json);
-    return table_json;
-}
 
 static char *getDefaultTableID(char *defaultTableID, size_t maxLen, unsigned int tablePosition) {
     snprintf(defaultTableID, PSV_TABLE_ID_MAX, "table%d", tablePosition);
     return defaultTableID;
 }
 
-void parse_table_to_json_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
+static void parse_table_to_json_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
     char defaultTableID[PSV_TABLE_ID_MAX];
     PsvTable *table = NULL;
     cJSON *table_json = NULL;
@@ -74,7 +39,7 @@ void parse_table_to_json_from_stream(FILE* input_stream, FILE* output_stream, un
         }
 
         // Table Found, print it to output stream
-        cJSON *table_json = compact_mode ? create_table_rows_json(table) : create_table_json(table);
+        cJSON *table_json = compact_mode ? psv_json_create_table_rows(table) : psv_json_create_table_json(table);
         char *json_string = cJSON_PrintUnformatted(table_json);
         fprintf(output_stream, "%s\n", json_string);
         free(json_string);
@@ -92,7 +57,7 @@ void parse_table_to_json_from_stream(FILE* input_stream, FILE* output_stream, un
 
 }
 
-void parse_singular_table_streaming_rows_to_json_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
+static void parse_singular_table_streaming_rows_to_json_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
 
     if ((pos_selector == 0) && (id_selector == NULL)) {
         // Expecting to be in singular table search mode
@@ -123,7 +88,7 @@ void parse_singular_table_streaming_rows_to_json_from_stream(FILE* input_stream,
         PsvDataRow data_row = NULL;
         while ((data_row = psv_parse_table_row(input_stream, table)) != NULL) {
             // Row Found, print it to output stream
-            cJSON *table_json = create_table_single_row_json(table, data_row);
+            cJSON *table_json = psv_json_create_table_single_row(table, data_row);
             char *json_string = cJSON_PrintUnformatted(table_json);
             fprintf(output_stream, "%s\n", json_string);
             free(json_string);
@@ -141,7 +106,7 @@ void parse_singular_table_streaming_rows_to_json_from_stream(FILE* input_stream,
     return;
 }
 
-unsigned int parse_table_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
+static unsigned int parse_table_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
     if (compact_mode && ((pos_selector > 0) || (id_selector != NULL))) {
         // When in compact row only mode and singular table mode, you don't need to wrap the rows with a json array
         // Also it gives us an opportunity to operate in streaming mode to process very very large PSV tables

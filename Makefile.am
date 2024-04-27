@@ -1,5 +1,5 @@
 bin_PROGRAMS = psv
-psv_SOURCES = src/main.c src/psv.c src/psv.h src/cJSON.c src/cJSON.h
+psv_SOURCES = src/main.c src/psv.c src/psv.h src/psv_json.c src/psv_json.h src/cJSON.c src/cJSON.h
 
 check_PROGRAMS = unit_test
 unit_test_SOURCES = tests/unit_test.c
