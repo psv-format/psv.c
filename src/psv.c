@@ -5,7 +5,7 @@
 
 #include "psv.h"
 
-PsvBaseEncodingType getBaseEncodingType(const char* buffer) {
+PsvBaseEncodingType psv_get_base_encoding_type(const char* buffer) {
     // Check for square brackets annotations
     if (strstr(buffer, "[str]") != NULL || strstr(buffer, "[string]") != NULL)
         return PSV_BASE_TYPE_TEXT;

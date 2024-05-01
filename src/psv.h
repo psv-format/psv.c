@@ -26,8 +26,7 @@ typedef enum {
     PSV_BASE_TYPE_BOOL,        ///< [bool] Used to store boolean values, represented as integers (0 for false, 1 for true). Similar to SQLite INTEGER.
     PSV_BASE_TYPE_HEX,         ///< [hex] Used to store binary data in hexadecimal format. Similar to SQLite BLOB.
     PSV_BASE_TYPE_BASE64,      ///< [base64] Used to store binary data in Base64 encoding. Similar to SQLite BLOB.
-    PSV_BASE_TYPE_DATA_URI,    ///< [dataURI] Used to store binary data encoded as data URIs. Similar to SQLite BLOB.
-    PSV_BASE_TYPE_MAX
+    PSV_BASE_TYPE_DATA_URI    ///< [dataURI] Used to store binary data encoded as data URIs. Similar to SQLite BLOB.
 } PsvBaseEncodingType;
 
 typedef enum {
@@ -66,5 +65,7 @@ void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr);
 bool psv_parse_skip_table_row(FILE *input, PsvTable *table);
 
 PsvTable *psv_parse_table(FILE *input, char *defaultTableID);
+
+PsvBaseEncodingType psv_get_base_encoding_type(const char* buffer);
 
 #endif
