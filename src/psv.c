@@ -5,6 +5,40 @@
 
 #include "psv.h"
 
+PsvBaseEncodingType getBaseEncodingType(const char* buffer) {
+    // Check for square brackets annotations
+    if (strstr(buffer, "[str]") != NULL || strstr(buffer, "[string]") != NULL)
+        return PSV_BASE_TYPE_TEXT;
+    
+    if (strstr(buffer, "[int]") != NULL || strstr(buffer, "[integer]") != NULL)
+        return PSV_BASE_TYPE_INTEGER;
+    
+    if (strstr(buffer, "[float]") != NULL)
+        return PSV_BASE_TYPE_FLOAT;
+
+    if (strstr(buffer, "[bool]") != NULL)
+        return PSV_BASE_TYPE_BOOL;
+
+    if (strstr(buffer, "[hex]") != NULL)
+        return PSV_BASE_TYPE_HEX;
+
+    if (strstr(buffer, "[base64]") != NULL)
+        return PSV_BASE_TYPE_BASE64;
+
+    if (strstr(buffer, "[datauri]") != NULL)
+        return PSV_BASE_TYPE_DATA_URI;
+
+    // Check for parentheses annotations (heuristics)
+    if (strstr(buffer, "(true/false)") != NULL)
+        return PSV_BASE_TYPE_BOOL;
+
+    if (strstr(buffer, "(active/inactive)") != NULL)
+        return PSV_BASE_TYPE_BOOL;
+
+    // Default to string if no specific annotation is found
+    return PSV_BASE_TYPE_TEXT;
+}
+
 /**
  * @brief Generates a JSON key from a header string.
  * 
@@ -160,44 +194,63 @@ static char *trim_whitespace(char *str) {
  * 
  * This function extracts the table ID from the consistent attribute syntax within a table block,
  * allowing the table to be identified later. The table ID is typically specified using the
- * `#{id}` syntax at the beginning of the table block.
+ * `{#id}` syntax at the beginning of the table block.
  * 
- * @param buffer A string buffer containing the internal content of the table block.
- *               The buffer should already have the outer `{}` removed.
- * @param table A pointer to the PsvTable structure where the extracted ID will be stored.
+ * @param stringBuffer A string buffer containing the internal content of the table block.
+ *                     The buffer should already have the outer `{}` removed.
+ * @param id A character array where the extracted ID will be stored.
+ * @param idSize The size of the character array `id`.
  * 
  * @remarks This function expects the consistent attribute syntax to be present within the table block.
- *          It searches for the table ID specified using the `#{id}` syntax at the beginning of the block.
- *          The function assumes that the ID is always placed at the beginning of the block for simplicity.
- *          If the ID is found, it is copied into the `id` field of the PsvTable structure.
+ *          It searches for the table ID specified using the `{#id}` syntax at the beginning of the block.
+ *          The function skips all characters until an opening curly brace or the end of the buffer is encountered.
+ *          If the ID is found and fits within the provided `id` buffer, it is copied into the buffer.
  * 
  * @note The input buffer should contain the internal content of the table block without the outer `{}`.
- *       The `table` parameter should point to a valid PsvTable structure where the extracted ID will be stored.
+ *       The `id` parameter should point to a character array where the extracted ID will be stored.
+ *       The `idSize` parameter specifies the maximum size of the `id` buffer to prevent buffer overflow.
  *       This function does not handle scenarios where the table ID is placed later in the block.
  *       It prioritizes simplicity over robustness and may miss the ID if it is not located at the beginning.
+ * 
+ * @return `true` if the ID is successfully parsed and fits within the provided buffer size, `false` otherwise.
  */
-static void parse_consistent_attribute_syntax_id(const char *buffer, PsvTable *table) {
-    // Iterate through the buffer until '#' or end of string is found
-    while (*buffer != '\0' && *buffer != '#') {
-        if (*buffer == ' ') {
-            buffer++; // Skip leading spaces
-        } else {
-            // ID must be in front of all other attributes or classes
-            return;
-        }
+static bool parse_consistent_attribute_syntax_id(const char *stringBuffer, char *id, size_t idSize) {
+
+    // Skip all characters until an opening curly brace or end of stringBuffer
+    while (*stringBuffer != '\0' && *stringBuffer != '{') {
+        stringBuffer++;
     }
 
-    // If '#' is found, extract the ID
-    if (*buffer == '#') {
-        buffer++; // Move past the '#' character
-        int i = 0;
-        // Copy the ID until a space or '}' is encountered
-        while ((i < PSV_TABLE_ID_MAX) && (*buffer != '\0') && *buffer != ' ' && *buffer != '}') {
-            table->id[i] = *buffer++;
-            i++;
-        }
-        table->id[i] = '\0'; // Null-terminate the ID
+    // Check if an opening curly brace was found
+    if (*stringBuffer != '{') {
+        return false; // No opening curly brace found
     }
+
+    // Move past the opening curly brace
+    stringBuffer++;
+
+    // Skip leading spaces inside the curly braces
+    while (*stringBuffer == ' ') {
+        stringBuffer++;
+    }
+
+    // Check if we found the # id signifier
+    if (*stringBuffer != '#') {
+        return false; // No id field found
+    }
+
+    // Move past the '#' character
+    stringBuffer++;
+
+    // Copy characters until a space, '}', or end of stringBuffer is encountered
+    size_t i = 0;
+    while (i < idSize - 1 && *stringBuffer != '\0' && *stringBuffer != ' ' && *stringBuffer != '}') {
+        id[i++] = *stringBuffer++;
+    }
+
+    id[i] = '\0'; // Null-terminate the ID
+
+    return true;
 }
 
 /**
@@ -306,24 +359,21 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
             if (line[0] == '{') {
                 // Parse Consistent attribute syntax https://talk.commonmark.org/t/consistent-attribute-syntax/272
 
-                // Check for metadata
+                // Check for expected closing `}`
+                // Dev Note: In the future maybe we can support multiline attributes? For now, no.
                 bool closing_bracket = false;
-
-                // Trim '}' on right hand side
                 for (int i = read - 1; i > 0; i--) {
                     if (line[i] == '}') {
-                        line[i] = '\0';
                         closing_bracket = true;
                         break;
                     }
                 }
 
-                size_t str_line = strlen(line + 1);
-                if (!closing_bracket && str_line == 0) {
+                if (!closing_bracket) {
                     continue;
                 }
 
-                parse_consistent_attribute_syntax_id(trim_whitespace(line + 1), table);
+                parse_consistent_attribute_syntax_id(line, table->id, PSV_TABLE_ID_MAX);
             } else if (line[0] == '|') {
                 table->num_headers = 0;
                 table->num_data_rows = 0;
@@ -349,8 +399,11 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                     table->headers[table->num_headers] = malloc((full_header_buffer_size) * sizeof(char));
                     strcpy(table->headers[table->num_headers], full_header);
 
-                    table->json_keys[table->num_headers] = malloc((full_header_buffer_size) * sizeof(char));
-                    generateJSONKey(full_header, table->json_keys[table->num_headers], full_header_buffer_size);
+                    // Json Keys
+                    table->json_keys[table->num_headers] = malloc(PSV_HEADER_ID_MAX * sizeof(char));
+                    if (!parse_consistent_attribute_syntax_id(full_header, table->json_keys[table->num_headers], (PSV_HEADER_ID_MAX) * sizeof(char))) {
+                        generateJSONKey(full_header, table->json_keys[table->num_headers], PSV_HEADER_ID_MAX);
+                    }
 
                     table->num_headers++;
                 }
