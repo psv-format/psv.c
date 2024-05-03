@@ -19,3 +19,11 @@ clean-doxygen:
 
 # Add Doxygen to the list of targets to be built
 all-local: doxygen
+
+# Setup Python Enviroments
+.PHONY: generate
+update-cbor-tags:
+	python3 -m venv venv
+	. venv/bin/activate
+	venv/bin/pip install -r requirements.txt
+	cd c; ./c_header_cbor.py
