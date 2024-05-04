@@ -17,6 +17,10 @@ doxygen:
 clean-doxygen:
 	rm -rf docs
 
+# Open the generated documentation in the default web browser
+open_docs:
+	xdg-open docs/html/index.html
+
 # Add Doxygen to the list of targets to be built
 all-local: doxygen
 
