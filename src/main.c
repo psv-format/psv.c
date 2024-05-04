@@ -5,6 +5,7 @@
 #include <getopt.h>
 
 #include "config.h"
+#include "log.h"
 
 #include "cJSON.h"
 
@@ -197,12 +198,14 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    log_info("%s-%s", PACKAGE_NAME, PACKAGE_VERSION);
+
     // Prep output stream
     FILE* output_stream = stdout; // Default to stdout
     if (output_file) {
         output_stream = fopen(output_file, "w");
         if (!output_stream) {
-            fprintf(stderr, "Error: Cannot open file '%s' for writing.\n", output_file);
+            log_error("Error: Cannot open file '%s' for writing.", output_file);
             exit(1);
         }
     }
@@ -212,9 +215,13 @@ int main(int argc, char* argv[]) {
     unsigned int tablePosition = 0;
     if (optind < argc) {
         for (int i = optind; i < argc; i++) {
-            FILE* input_file = fopen(argv[i], "r");
+            const char *file_path = argv[i];
+
+            log_info("Processing %s", file_path);
+
+            FILE* input_file = fopen(file_path, "r");
             if (!input_file) {
-                fprintf(stderr, "Error: Cannot open file '%s' for reading.\n", argv[i]);
+                log_error("Error: Cannot open file '%s' for reading.", file_path);
                 exit(1);
             }
 
@@ -232,7 +239,8 @@ int main(int argc, char* argv[]) {
             fclose(input_file);
         }
     } else {
-        // No input files provided, read from stdin  
+        // No input files provided, read from stdin
+        log_info("Processing stdin");
         parse_table_from_stream(stdin, output_stream, &tallyCount, pos_selector, id_selector, compact_mode);
     }
 
