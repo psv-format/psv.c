@@ -110,10 +110,10 @@ static unsigned int parse_table_from_stream(FILE* input_stream, FILE* output_str
     if (compact_mode && ((pos_selector > 0) || (id_selector != NULL))) {
         // When in compact row only mode and singular table mode, you don't need to wrap the rows with a json array
         // Also it gives us an opportunity to operate in streaming mode to process very very large PSV tables
-        parse_singular_table_streaming_rows_to_json_from_stream(stdin, output_stream, tallyCount, pos_selector, id_selector, compact_mode);
+        parse_singular_table_streaming_rows_to_json_from_stream(input_stream, output_stream, tallyCount, pos_selector, id_selector, compact_mode);
     } else {
         // This is normal table by table streaming. Minimum optimisation for this mode as we don't know the number of tables etc...
-        parse_table_to_json_from_stream(stdin, output_stream, tallyCount, pos_selector, id_selector, compact_mode);
+        parse_table_to_json_from_stream(input_stream, output_stream, tallyCount, pos_selector, id_selector, compact_mode);
     }
 }
 
@@ -219,7 +219,7 @@ int main(int argc, char* argv[]) {
             }
 
             // No input files provided, read from stdin
-            parse_table_from_stream(stdin, output_stream, &tallyCount, pos_selector, id_selector, compact_mode);
+            parse_table_from_stream(input_file, output_stream, &tallyCount, pos_selector, id_selector, compact_mode);
 
             // Table Found?
             if (tallyCount > 0) {
