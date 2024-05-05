@@ -16,6 +16,9 @@ AC_CHECK_LIB([curl], [curl_easy_init], [
 	AC_MSG_ERROR([libcurl not found. Please install libcurl-dev package.])
 ])
 
+# Enable all warnings and treat them as errors by default
+CFLAGS="$CFLAGS -Wall -Werror"
+
 AC_CONFIG_FILES([Makefile]) # Specify Makefile generation for main directory and src directory
 AC_PROG_CC # Find and set up C compiler
 AC_OUTPUT # Generate output files

@@ -4,6 +4,8 @@ psv_SOURCES = src/main.c src/psv.c src/psv.h src/psv_json.c src/psv_json.h src/c
 check_PROGRAMS = unit_test
 unit_test_SOURCES = tests/unit_test.c
 
+AM_CFLAGS = -Wall -Werror -Wno-unused-function
+
 # ACLOCAL_AMFLAGS specifies additional flags for aclocal.
 # -I m4: Include the m4 directory for additional macros.
 # --install: Automatically install missing macros into the system-wide directory.
@@ -31,3 +33,4 @@ update-cbor-tags:
 	. venv/bin/activate
 	venv/bin/pip install -r requirements.txt
 	cd c; ./c_header_cbor.py
+
