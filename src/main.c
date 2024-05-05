@@ -22,7 +22,6 @@ static char *getDefaultTableID(char *defaultTableID, size_t maxLen, unsigned int
 static void parse_table_to_json_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
     char defaultTableID[PSV_TABLE_ID_MAX];
     PsvTable *table = NULL;
-    cJSON *table_json = NULL;
 
     while ((table = psv_parse_table(input_stream, getDefaultTableID(defaultTableID, PSV_TABLE_ID_MAX, *tallyCount + 1))) != NULL) {
 
@@ -107,7 +106,7 @@ static void parse_singular_table_streaming_rows_to_json_from_stream(FILE* input_
     return;
 }
 
-static unsigned int parse_table_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
+static void parse_table_from_stream(FILE* input_stream, FILE* output_stream, unsigned int *tallyCount, int pos_selector, char *id_selector, bool compact_mode) {
     if (compact_mode && ((pos_selector > 0) || (id_selector != NULL))) {
         // When in compact row only mode and singular table mode, you don't need to wrap the rows with a json array
         // Also it gives us an opportunity to operate in streaming mode to process very very large PSV tables
@@ -218,7 +217,6 @@ int main(int argc, char* argv[]) {
 
     // Process input files
     unsigned int tallyCount = 0;
-    unsigned int tablePosition = 0;
     if (optind < argc) {
         for (int i = optind; i < argc; i++) {
             const char *file_path = argv[i];
