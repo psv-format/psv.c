@@ -198,6 +198,12 @@ int main(int argc, char* argv[]) {
         }
     }
 
+#if 0
+    log_set_level(LOG_TRACE);
+#else
+    log_set_quiet(true);
+#endif
+
     log_info("%s-%s", PACKAGE_NAME, PACKAGE_VERSION);
 
     // Prep output stream
