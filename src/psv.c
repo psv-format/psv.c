@@ -1,43 +1,27 @@
+/**
+ * @file psv.c
+ * @brief Processes And Parses PSV Content
+ *
+ * Copyright (C) 2024-2024 Brian Khuu <contact@briankhuu.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include "psv.h"
+#include "log.h"
 
-PsvBaseEncodingType psv_get_base_encoding_type(const char* buffer) {
-    // Check for square brackets annotations
-    if (strstr(buffer, "[str]") != NULL || strstr(buffer, "[string]") != NULL)
-        return PSV_BASE_TYPE_TEXT;
-    
-    if (strstr(buffer, "[int]") != NULL || strstr(buffer, "[integer]") != NULL)
-        return PSV_BASE_TYPE_INTEGER;
-    
-    if (strstr(buffer, "[float]") != NULL)
-        return PSV_BASE_TYPE_FLOAT;
-
-    if (strstr(buffer, "[bool]") != NULL)
-        return PSV_BASE_TYPE_BOOL;
-
-    if (strstr(buffer, "[hex]") != NULL)
-        return PSV_BASE_TYPE_HEX;
-
-    if (strstr(buffer, "[base64]") != NULL)
-        return PSV_BASE_TYPE_BASE64;
-
-    if (strstr(buffer, "[datauri]") != NULL)
-        return PSV_BASE_TYPE_DATA_URI;
-
-    // Check for parentheses annotations (heuristics)
-    if (strstr(buffer, "(true/false)") != NULL)
-        return PSV_BASE_TYPE_BOOL;
-
-    if (strstr(buffer, "(active/inactive)") != NULL)
-        return PSV_BASE_TYPE_BOOL;
-
-    // Default to string if no specific annotation is found
-    return PSV_BASE_TYPE_TEXT;
-}
+#ifdef NDEBUG
+    #define assert(expression) ((void)0)
+#endif
 
 /**
  * @brief Generates a JSON key from a header string.
@@ -158,6 +142,49 @@ static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_s
     return token_start;
 }
 
+static void capture_data_annotations(const char *header_buffer, PsvDataAnnotationField **data_annotation_array, size_t *num_data_annotation_tags) {
+    const char *token_start = header_buffer; 
+    const char *token_end = header_buffer;
+
+    while (*token_end != '\0') {
+        // Find the start of a data annotation tag
+        token_start = strchr(token_end, '[');
+        if (token_start == NULL) {
+            break; // No more data annotation tags found
+        }
+
+        // Skip '['
+        token_start++;
+
+        // Find the end of the data annotation tag
+        token_end = strchr(token_start, ']');
+        if (token_end == NULL) {
+            break; // Invalid data annotation tag format
+        }
+
+        // Check if we are actually looking at a data annotation token or a markdown link `[example](http:example.com)`
+        // If we are looking at a markdown link, then let skip it and search for the next potential data annotation
+        if (*(token_end + 1) != '\0' && *(token_end + 1) == '(')
+            continue;
+
+        // Check if tag length is non zero
+        const size_t tag_length = token_end - token_start;
+        if (tag_length == 0)
+            continue;
+
+        // Resize Annotation Field Array
+        *data_annotation_array = (PsvDataAnnotationField*) realloc(*data_annotation_array, (*num_data_annotation_tags + 1) * sizeof(PsvDataAnnotationField*));
+        assert(*data_annotation_array != NULL);
+
+        // Add Annotation Field String To Array
+        (*data_annotation_array)[*num_data_annotation_tags] = malloc((tag_length + 1) * sizeof(char));
+        memmove((*data_annotation_array)[*num_data_annotation_tags], token_start, tag_length);
+        (*data_annotation_array)[*num_data_annotation_tags][tag_length] = '\0';
+
+        *num_data_annotation_tags = *num_data_annotation_tags + 1;
+    }
+}
+
 /**
  * @brief Trims leading and trailing whitespace from a string.
  * 
@@ -187,6 +214,35 @@ static char *trim_whitespace(char *str) {
     }
 
     return str;
+}
+
+/**
+ * @brief Trims leading and trailing '|' characters from a Markdown table row.
+ *
+ * This function removes leading and trailing '|' characters from a Markdown table row.
+ *
+ * @param line A pointer to a character array representing a Markdown table row.
+ * @param line_size The size of the character array.
+ * 
+ * @return A pointer to the beginning of the first token in the row after trimming.
+ *         Returns NULL if the row is empty or doesn't start with '|'.
+ */
+static char *trim_md_table_row(char *line, ssize_t line_size) {
+
+    // Check if we got a reasonable psv row
+    if (line_size <= 2 && line[0] != '|')
+        return NULL;
+
+    // Trim '|' on right hand side
+    for (int i = line_size - 1; i > 0; i--) {
+        if (line[i] == '|') {
+            line[i] = '\0';
+            break;
+        }
+    }
+
+    // Return token 
+    return line + 1;
 }
 
 /**
@@ -264,35 +320,40 @@ static bool parse_consistent_attribute_syntax_id(const char *stringBuffer, char 
  */
 static void psv_clear_table(PsvTable *table) {
 
-    // Free Tabular Header
-    if (table->headers) {
+    // Free Header Metadata
+    if (table->header_metadata) {
         for (int i = 0; i < table->num_headers; i++) {
-            free(table->headers[i]);
-            table->headers[i] = NULL;
-        }
-        free(table->headers);
-        table->headers = NULL;
-    }
+            PsvHeaderMetadataField *header_metadata = &table->header_metadata[i];
 
-    // Free JSON keys Header
-    if (table->json_keys) {
-        for (int i = 0; i < table->num_headers; i++) {
-            free(table->json_keys[i]);
-            table->json_keys[i] = NULL;
+            // Free all dynamic strings
+            free(header_metadata->raw_header);
+
+            // Free Data Annotation
+            if (header_metadata->data_annotation_tags) {
+                for (int j = 0; j < header_metadata->data_annotation_tag_size; j++) {
+                    PsvDataAnnotationField data_annotation_field = header_metadata->data_annotation_tags[j];
+                    free(data_annotation_field);
+                    data_annotation_field = NULL;
+                }
+                free(header_metadata->data_annotation_tags);
+                header_metadata->data_annotation_tags = NULL;
+            }
         }
-        free(table->json_keys);
-        table->json_keys = NULL;
+        free(table->header_metadata);
+        table->header_metadata = NULL;
     }
 
     // Free Tabular Data
     if (table->data_rows) {
         for (int i = 0; i < table->num_data_rows; i++) {
+            PsvDataRow data_row = table->data_rows[i];
             for (int j = 0; j < table->num_headers; j++) {
-                free(table->data_rows[i][j]);
-                table->data_rows[i][j] = NULL;
+                PsvDataField data_field = data_row[j];
+                free(data_field);
+                data_field = NULL;
             }
-            free(table->data_rows[i]);
-            table->data_rows[i] = NULL;
+            free(data_row);
+            data_row = NULL;
         }
         free(table->data_rows);
         table->data_rows = NULL;
@@ -353,9 +414,17 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
 
     // Loop through lines in the input stream
     while ((read = getline(&line, &len, input)) != -1) {
+
+        // Check if the last character is a newline
+        if (read > 0 && line[read - 1] == '\n') {
+            line[read - 1] = '\0';  // Replace newline with null terminator
+        }
+
+        log_trace("processing line '%s'", line);
+
         // Determine parsing state based on table content
         switch (table->parsing_state) {
-        case PSV_PARSING_SCANNING:
+        case PSV_TABLE_PARSING_SCANNING:
             if (line[0] == '{') {
                 // Parse Consistent attribute syntax https://talk.commonmark.org/t/consistent-attribute-syntax/272
 
@@ -373,60 +442,89 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                     continue;
                 }
 
-                parse_consistent_attribute_syntax_id(line, table->id, PSV_TABLE_ID_MAX);
+                if (parse_consistent_attribute_syntax_id(line, table->id, PSV_TABLE_ID_MAX)) {
+                    log_debug("Table ID: %s", table->id);
+                }
             } else if (line[0] == '|') {
                 table->num_headers = 0;
                 table->num_data_rows = 0;
 
-                // Trim '|' on right hand side
-                for (int i = read - 1; i > 0; i--) {
-                    if (line[i] == '|') {
-                        line[i] = '\0';
-                        break;
-                    }
+                char *trimmed_psv_row = trim_md_table_row(line, read);
+                if (trimmed_psv_row == NULL) {
+                    psv_clear_table(table);
+                    continue;
                 }
+
+                assert(table->header_metadata == NULL);
 
                 // Split and Cache header
                 char *tokenization_state = NULL;
                 char *token;
-                while ((token = tokenize_escaped_delim(line + 1, '|', &tokenization_state)) != NULL) {
-                    table->headers = realloc(table->headers, (table->num_headers + 1) * sizeof(char *));
-                    table->json_keys = realloc(table->json_keys, (table->num_headers + 1) * sizeof(char *));
+                while ((token = tokenize_escaped_delim(trimmed_psv_row, '|', &tokenization_state)) != NULL) {
+                    // Got Header Column
+                    const char * full_header_buffer = trim_whitespace(token);
+                    const size_t full_header_buffer_size = strlen(full_header_buffer) + 1;
 
-                    const char * full_header = trim_whitespace(token);
-                    const unsigned long full_header_buffer_size = strlen(token) + 1;
+                    table->header_metadata = realloc(table->header_metadata, (table->num_headers + 1) * sizeof(PsvHeaderMetadataField));
+                    assert(table->header_metadata != NULL);
 
-                    table->headers[table->num_headers] = malloc((full_header_buffer_size) * sizeof(char));
-                    strcpy(table->headers[table->num_headers], full_header);
+                    table->header_metadata[table->num_headers] = (PsvHeaderMetadataField){0};
+
+                    PsvHeaderMetadataField *header_metadata = &table->header_metadata[table->num_headers];
+                    *header_metadata = (PsvHeaderMetadataField){0};
+
+                    // Raw Headers
+                    header_metadata->raw_header = malloc(full_header_buffer_size * sizeof(char));
+                    assert(header_metadata->raw_header != NULL);
+                    memcpy(header_metadata->raw_header, full_header_buffer, full_header_buffer_size);
 
                     // Json Keys
-                    table->json_keys[table->num_headers] = malloc(PSV_HEADER_ID_MAX * sizeof(char));
-                    if (!parse_consistent_attribute_syntax_id(full_header, table->json_keys[table->num_headers], (PSV_HEADER_ID_MAX) * sizeof(char))) {
-                        generateJSONKey(full_header, table->json_keys[table->num_headers], PSV_HEADER_ID_MAX);
+                    if (!parse_consistent_attribute_syntax_id(full_header_buffer, header_metadata->id, (PSV_HEADER_ID_MAX) * sizeof(char))) {
+                        // Consistent Attribute Syntax not found or does not contain id override
+                        // Use heuristics to generate a reasonable json key
+                        generateJSONKey(full_header_buffer, header_metadata->id, PSV_HEADER_ID_MAX);
                     }
+
+#if 1 // SEGFAULTS
+                    // Data Annotations
+                    capture_data_annotations(full_header_buffer, &header_metadata->data_annotation_tags, &header_metadata->data_annotation_tag_size);
+#endif
 
                     table->num_headers++;
                 }
 
+                // Diagnostics Printout of Header Content
+                log_debug("Found Header Count: %d", table->num_headers);
+                for (int i = 0; i < table->num_headers; i++) {
+                    log_debug("Found Header ID: %s", table->header_metadata[i].id);
+                    log_debug("Found Header Raw: %s", table->header_metadata[i].raw_header);
+                    if (table->header_metadata[i].data_annotation_tag_size > 0) {
+                        log_debug("Data Annotation Count %d", table->header_metadata[i].data_annotation_tag_size);
+                        for (int j = 0; j < table->header_metadata[i].data_annotation_tag_size; j++) {
+                            log_debug("Data Annotation %d: %s", j, table->header_metadata[i].data_annotation_tags[j]);
+                        }
+                    }
+                }
+
                 // Check if at least one header field is detected
                 if (table->num_headers > 0) {
-                    table->parsing_state = PSV_PARSING_POTENTIAL_HEADER;
+                    table->parsing_state = PSV_TABLE_PARSING_POTENTIAL_HEADER;
                     if (table->id[0] == '\0') {
                         strcpy(table->id, defaultTableID);
                     }
                 } else {
                     psv_clear_table(table);
                 }
-            } else {
-                // Not a table header
+        } else {
+          // Not a table header
 
-                // Clear table in case we found Consistent Attribute Syntax but no table
-                // Since it might be for a different block instead
-                psv_clear_table(table);
-            }
+          // Clear table in case we found Consistent Attribute Syntax but no
+          // table Since it might be for a different block instead
+          psv_clear_table(table);
+        }
             break;
         
-        case PSV_PARSING_POTENTIAL_HEADER:
+        case PSV_TABLE_PARSING_POTENTIAL_HEADER:
             // Check if actual header by checking if there is enough '|---|'
             if (line[0] == '|') {
                 // Trim '|' on right hand side
@@ -451,17 +549,17 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                 if (table->num_headers == num_header_separators) {
                     // It's most likely a markdown table
                     // We can now safely start parsing the data rows
-                    table->parsing_state = PSV_PARSING_DATA_ROW;
+                    table->parsing_state = PSV_TABLE_PARSING_DATA_ROW;
                 } else {
                     // Mismatch with headers, free the allocated memory
-                    table->parsing_state = PSV_PARSING_SCANNING;
+                    table->parsing_state = PSV_TABLE_PARSING_SCANNING;
                     psv_clear_table(table);
                 }
             }
             break;
-        case PSV_PARSING_DATA_ROW:
+        case PSV_TABLE_PARSING_DATA_ROW:
             break;
-        case PSV_PARSING_END:
+        case PSV_TABLE_PARSING_END:
             break;
         }
 
@@ -470,8 +568,8 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
         line = NULL;
         len = 0;
 
-        // Exit loop if parsing state is PSV_PARSING_DATA_ROW
-        if (table->parsing_state == PSV_PARSING_DATA_ROW) {
+        // Exit loop if parsing state is PSV_TABLE_PARSING_DATA_ROW
+        if (table->parsing_state == PSV_TABLE_PARSING_DATA_ROW) {
             break;
         }
     }
@@ -480,7 +578,7 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
     free(line);
 
     // Check parsing state and free table memory if necessary
-    if (table->parsing_state != PSV_PARSING_DATA_ROW) {
+    if (table->parsing_state != PSV_TABLE_PARSING_DATA_ROW) {
         psv_free_table(&table);
     }
 
@@ -504,7 +602,7 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
 PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
 
     // Cannot return row if not in data row parsing state
-    if (table->parsing_state != PSV_PARSING_DATA_ROW)
+    if (table->parsing_state != PSV_TABLE_PARSING_DATA_ROW)
         return NULL;
 
     // Initialize variables
@@ -543,7 +641,7 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
             }
         } else {
             // End of Table detected
-            table->parsing_state = PSV_PARSING_END;
+            table->parsing_state = PSV_TABLE_PARSING_END;
         }
     }
     
@@ -590,7 +688,7 @@ void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr) {
 bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
 
     // Cannot return row if not in data row parsing state
-    if (table->parsing_state != PSV_PARSING_DATA_ROW)
+    if (table->parsing_state != PSV_TABLE_PARSING_DATA_ROW)
         return false;
 
     bool row_found = false;
@@ -602,7 +700,7 @@ bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
             row_found = true;
         } else {
             // End of Table detected
-            table->parsing_state = PSV_PARSING_END;
+            table->parsing_state = PSV_TABLE_PARSING_END;
         }
     }
 
@@ -624,8 +722,9 @@ bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
  */
 PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
     // Parse the table header to extract metadata and column names
+
     PsvTable *table = psv_parse_table_header(input, defaultTableID);
-    
+
     // If table parsing failed, return NULL
     if (table == NULL) {
         return NULL;

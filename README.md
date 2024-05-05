@@ -309,6 +309,16 @@ make && valgrind --leak-check=full \
 HEREDOC
 ```
 
+```bash
+make && valgrind --leak-check=full \
+         --show-leak-kinds=all \
+         --track-origins=yes \
+         --verbose \
+         --log-file=valgrind-out.txt \
+         ./psv -t 1 test.psv
+make && gdb --args ./psv -t 1 test.psv
+```
+
 ## Design Considerations
 
 - **Integration with Existing Tools**: psv is intentionally designed to be simple and focused, serving as a specialized tool for Markdown table conversion. While jq offers extensive JSON manipulation capabilities, psv complements it by providing a straightforward solution specifically tailored for Markdown tables. This is by outputting json which jq can more easily parse.

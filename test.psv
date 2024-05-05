@@ -1,0 +1,6 @@
+| Name  [str][name] | Age | City         |
+| ------- | --- | ------------ |
+| Alice   | 25  | New York     |
+| Bob     | 32  | San Francisco|
+| Bob     | 32  | Melbourne    |
+| Charlie | 19  | London       |
