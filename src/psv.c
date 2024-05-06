@@ -18,30 +18,97 @@
 
 #include "psv.h"
 #include "log.h"
+#include "cbor_constants.h"
 
 #ifdef NDEBUG
     #define assert(expression) ((void)0)
 #endif
 
+
+typedef struct {
+    const char *raw_string;
+    PsvDataAnnotationType annotation_type;
+    cbor_tag_t tag;
+} DataAnnotationMapping;
+
+const DataAnnotationMapping data_annotation_mappings[] = {
+    // Basic JSON compatible atomic value
+    {"string", PSV_DATA_ANNOTATION_TEXT, CBOR_TAG_INVALID_64BIT},
+    {"str", PSV_DATA_ANNOTATION_TEXT, CBOR_TAG_INVALID_64BIT},
+    {"integer", PSV_DATA_ANNOTATION_INTEGER, CBOR_TAG_INVALID_64BIT},
+    {"int", PSV_DATA_ANNOTATION_INTEGER, CBOR_TAG_INVALID_64BIT},
+    {"float", PSV_DATA_ANNOTATION_FLOAT, CBOR_TAG_INVALID_64BIT},
+    {"bool", PSV_DATA_ANNOTATION_BOOL, CBOR_TAG_INVALID_64BIT},
+
+    // Basic CBOR Binary compatible atomic value
+    {"hex", PSV_DATA_ANNOTATION_HEX, CBOR_TAG_HEXADECIMAL_STRING},
+    {"base64", PSV_DATA_ANNOTATION_BASE64, CBOR_TAG_BASE64},
+    {"datauri", PSV_DATA_ANNOTATION_DATA_URI, CBOR_TAG_BASE64URL},
+
+    // Semantic Tag
+    {"datetime", PSV_DATA_ANNOTATION_DATETIME, CBOR_TAG_STD_DATE_TIME_STRING},
+    {"uuid", PSV_DATA_ANNOTATION_DATETIME, CBOR_TAG_STD_DATE_TIME_STRING},
+
+};
+const size_t num_data_annotation_mappings = sizeof(data_annotation_mappings) / sizeof(data_annotation_mappings[0]);
+
+static void match_data_annotation_types(PsvDataAnnotationField *data_annotation_array, size_t num_data_annotation_tags) {
+    for (size_t i = 0; i < num_data_annotation_tags; i++) {
+        // Unknown data annotation type
+        data_annotation_array[i].type = PSV_DATA_ANNOTATION_UNKNOWN;
+
+        // Match raw string against predefined data annotation types using the lookup table
+        for (size_t j = 0; j < num_data_annotation_mappings; j++) {
+            bool match = true;
+
+            for (size_t k = 0; ; k++) {
+                if (tolower(data_annotation_array[i].raw[k]) != data_annotation_mappings[j].raw_string[k]) {
+                    match = false;
+                    break;
+                }
+
+                if (data_annotation_mappings[j].raw_string[k] == '\0') {
+                    const char c = data_annotation_array[i].raw[k];
+                    if (isalpha(c) || isdigit(c)) {
+                        // Not end of a word so is a mismatch
+                        match = false;
+                        break;
+                    }
+                    // End of the word and is matching
+                    // (e.g. In [data:text/plain] we only need to match data)
+                    match = true;
+                    break;
+                }
+            }
+
+            if (match) {
+                data_annotation_array[i].type = data_annotation_mappings[j].annotation_type;
+                data_annotation_array[i].tag = data_annotation_mappings[j].tag;
+                break;
+            }
+        }
+    }
+}
+
 /**
  * @brief Generates a JSON key from a header string.
- * 
- * This function generates a JSON key from a given header string, 
+ *
+ * This function generates a JSON key from a given header string,
  * ensuring that the key is valid and follows certain conventions.
- * 
+ *
  * @param header The header string from which to generate the JSON key.
  * @param jsonKeyBuffer A buffer to store the generated JSON key.
  * @param bufferSize The size of the jsonKeyBuffer.
- * 
+ *
  * @return A pointer to the generated JSON key string.
- * 
- * @remarks The generated JSON key will be stored in jsonKeyBuffer. 
- *          The function ensures that the generated key is valid and 
+ *
+ * @remarks The generated JSON key will be stored in jsonKeyBuffer.
+ *          The function ensures that the generated key is valid and
  *          follows certain conventions:
  *          - Special characters and spaces are replaced with underscores.
  *          - Only one underscore is allowed between words.
  *          - The generated key does not start or end with an underscore.
- *          - If bufferSize is insufficient to store the entire key, 
+ *          - If bufferSize is insufficient to store the entire key,
  *            the key will be truncated to fit within the buffer size.
  */
 static char* generateJSONKey(const char* header, char* jsonKeyBuffer, size_t bufferSize) {
@@ -50,7 +117,7 @@ static char* generateJSONKey(const char* header, char* jsonKeyBuffer, size_t buf
     // Iterate through the header
     for (int i = 0; header[i] != '\0' && bufferSize > 1; i++) {
         char c = header[i];
-        
+
         // Break if parentheses, brackets, or braces are found
         if (c == '(' || c == '[' || c == '{')
             break;
@@ -84,32 +151,32 @@ static char* generateJSONKey(const char* header, char* jsonKeyBuffer, size_t buf
 
 /**
  * @brief Tokenizes a string using an escaped delimiter.
- * 
- * This function tokenizes a string using a specified delimiter, 
+ *
+ * This function tokenizes a string using a specified delimiter,
  * while handling escaped delimiters within the string.
- * 
+ *
  * @param str The string to be tokenized.
  * @param delim The delimiter character used for tokenization.
- * @param tokenization_state A pointer to the tokenization state. 
- *                           Pass NULL to start tokenization from the beginning of the string, 
- *                           and pass the previous tokenization state for subsequent calls 
+ * @param tokenization_state A pointer to the tokenization state.
+ *                           Pass NULL to start tokenization from the beginning of the string,
+ *                           and pass the previous tokenization state for subsequent calls
  *                           to continue tokenization from where it left off.
- * 
+ *
  * @return A pointer to the next token in the string, or NULL if no more tokens are found.
- * 
+ *
  * @remarks This function tokenizes the input string by searching for the specified delimiter.
- *          It handles escaped delimiters within the string, allowing them to be treated as 
- *          regular characters rather than delimiters. 
- *          The tokenization_state parameter is used to maintain the state of tokenization 
- *          across multiple calls to the function. Pass NULL to start tokenization from the 
- *          beginning of the string, and pass the previous tokenization state returned by 
+ *          It handles escaped delimiters within the string, allowing them to be treated as
+ *          regular characters rather than delimiters.
+ *          The tokenization_state parameter is used to maintain the state of tokenization
+ *          across multiple calls to the function. Pass NULL to start tokenization from the
+ *          beginning of the string, and pass the previous tokenization state returned by
  *          the function for subsequent calls to continue tokenization from where it left off.
- *          The function modifies the input string by replacing delimiters with null terminators 
- *          to create separate tokens. It also updates the tokenization_state to indicate 
+ *          The function modifies the input string by replacing delimiters with null terminators
+ *          to create separate tokens. It also updates the tokenization_state to indicate
  *          the position in the string where tokenization stopped.
  *          If no more tokens are found in the string, the function returns NULL.
- * 
- * @note The input string is modified by this function. Make sure to pass a writable string 
+ *
+ * @note The input string is modified by this function. Make sure to pass a writable string
  *       or create a copy of the original string if needed.
  */
 static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_state) {
@@ -144,29 +211,29 @@ static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_s
 
 /**
  * @brief Captures data annotations from a header buffer.
- * 
- * This function extracts data annotations from a header buffer 
+ *
+ * This function extracts data annotations from a header buffer
  * and populates an array with the extracted annotations.
- * 
+ *
  * @param header_buffer The buffer containing the header with data annotations.
- * @param data_annotation_array A pointer to an array of PsvDataAnnotationField structs 
- *                              where the extracted annotations will be stored. 
- *                              This array will be reallocated as needed to accommodate 
+ * @param data_annotation_array A pointer to an array of PsvDataAnnotationField structs
+ *                              where the extracted annotations will be stored.
+ *                              This array will be reallocated as needed to accommodate
  *                              all annotations found in the header.
- * @param num_data_annotation_tags A pointer to a variable storing the number of data annotations 
- *                                 currently present in the data_annotation_array. 
- *                                 This variable will be updated to reflect the total number 
+ * @param num_data_annotation_tags A pointer to a variable storing the number of data annotations
+ *                                 currently present in the data_annotation_array.
+ *                                 This variable will be updated to reflect the total number
  *                                 of annotations after this function executes.
- * 
- * @remarks This function scans through the header buffer to find data annotation tags, 
- *          enclosed within square brackets ([]). It ignores markdown links in the format 
+ *
+ * @remarks This function scans through the header buffer to find data annotation tags,
+ *          enclosed within square brackets ([]). It ignores markdown links in the format
  *          `[example](http:example.com)` and only captures standalone data annotations.
- * 
- * @note The caller is responsible for freeing the memory allocated for the raw field of each 
+ *
+ * @note The caller is responsible for freeing the memory allocated for the raw field of each
  *       PsvDataAnnotationField struct and for the entire data_annotation_array when it's no longer needed.
  */
 static void capture_data_annotations(const char *header_buffer, PsvDataAnnotationField **data_annotation_array, size_t *num_data_annotation_tags) {
-    const char *token_start = header_buffer; 
+    const char *token_start = header_buffer;
     const char *token_end = header_buffer;
 
     while (*token_end != '\0') {
@@ -210,15 +277,15 @@ static void capture_data_annotations(const char *header_buffer, PsvDataAnnotatio
 
 /**
  * @brief Trims leading and trailing whitespace from a string.
- * 
- * This function trims leading and trailing whitespace characters (spaces, tabs, newlines, etc.) 
+ *
+ * This function trims leading and trailing whitespace characters (spaces, tabs, newlines, etc.)
  * from a given string, modifying the string in-place.
- * 
+ *
  * @param str The string to be trimmed.
- * 
+ *
  * @return A pointer to the trimmed string.
- * 
- * @note The input string is modified by this function. Make sure to pass a writable string 
+ *
+ * @note The input string is modified by this function. Make sure to pass a writable string
  *       or create a copy of the original string if needed.
  */
 static char *trim_whitespace(char *str) {
@@ -246,7 +313,7 @@ static char *trim_whitespace(char *str) {
  *
  * @param line A pointer to a character array representing a Markdown table row.
  * @param line_size The size of the character array.
- * 
+ *
  * @return A pointer to the beginning of the first token in the row after trimming.
  *         Returns NULL if the row is empty or doesn't start with '|'.
  */
@@ -264,33 +331,33 @@ static char *trim_md_table_row(char *line, ssize_t line_size) {
         }
     }
 
-    // Return token 
+    // Return token
     return line + 1;
 }
 
 /**
  * @brief Parses the table ID from the consistent attribute syntax within a table block.
- * 
+ *
  * This function extracts the table ID from the consistent attribute syntax within a table block,
  * allowing the table to be identified later. The table ID is typically specified using the
  * `{#id}` syntax at the beginning of the table block.
- * 
+ *
  * @param stringBuffer A string buffer containing the internal content of the table block.
  *                     The buffer should already have the outer `{}` removed.
  * @param id A character array where the extracted ID will be stored.
  * @param idSize The size of the character array `id`.
- * 
+ *
  * @remarks This function expects the consistent attribute syntax to be present within the table block.
  *          It searches for the table ID specified using the `{#id}` syntax at the beginning of the block.
  *          The function skips all characters until an opening curly brace or the end of the buffer is encountered.
  *          If the ID is found and fits within the provided `id` buffer, it is copied into the buffer.
- * 
+ *
  * @note The input buffer should contain the internal content of the table block without the outer `{}`.
  *       The `id` parameter should point to a character array where the extracted ID will be stored.
  *       The `idSize` parameter specifies the maximum size of the `id` buffer to prevent buffer overflow.
  *       This function does not handle scenarios where the table ID is placed later in the block.
  *       It prioritizes simplicity over robustness and may miss the ID if it is not located at the beginning.
- * 
+ *
  * @return `true` if the ID is successfully parsed and fits within the provided buffer size, `false` otherwise.
  */
 static bool parse_consistent_attribute_syntax_id(const char *stringBuffer, char *id, size_t idSize) {
@@ -334,11 +401,11 @@ static bool parse_consistent_attribute_syntax_id(const char *stringBuffer, char 
 
 /**
  * @brief Frees memory allocated for a PsvTable structure.
- * 
+ *
  * This function deallocates memory associated with the headers, JSON keys,
  * and data rows of a PsvTable structure, and zeroes out the table's state
  * and variables.
- * 
+ *
  * @param table A pointer to the PsvTable structure to be cleared.
  */
 static void psv_clear_table(PsvTable *table) {
@@ -387,13 +454,13 @@ static void psv_clear_table(PsvTable *table) {
 
 /**
  * @brief Frees memory allocated for a PsvTable structure and sets the pointer to NULL.
- * 
+ *
  * This function deallocates memory associated with the headers, JSON keys,
  * and data rows of a PsvTable structure, zeroes out the table's state and variables,
  * and then frees the memory allocated for the table structure itself. Additionally,
  * it sets the pointer to NULL in the caller's scope, indicating that the table is
  * no longer valid and preventing further access to its contents.
- * 
+ *
  * @param tablePtr A pointer to a pointer to the PsvTable structure to be freed.
  *                 After freeing the memory, this function sets the pointer to NULL
  *                 to indicate that the table is empty.
@@ -412,12 +479,12 @@ void psv_free_table(PsvTable **tablePtr) {
 
 /**
  * @brief Parses a table header from a file stream and constructs a PsvTable structure.
- * 
- * This function reads lines from the input file stream and parses a table header in 
- * Markdown format. It constructs a PsvTable structure containing the table headers 
- * and their corresponding JSON keys. The function supports parsing consistent attribute 
+ *
+ * This function reads lines from the input file stream and parses a table header in
+ * Markdown format. It constructs a PsvTable structure containing the table headers
+ * and their corresponding JSON keys. The function supports parsing consistent attribute
  * syntax for table IDs and handles various edge cases to determine the parsing state.
- * 
+ *
  * @param input The file stream from which to read the table header.
  * @param defaultTableID The default ID to assign to the table if no ID is specified.
  * @return A pointer to the PsvTable structure containing the parsed table header,
@@ -507,10 +574,9 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                         generateJSONKey(full_header_buffer, header_metadata->id, PSV_HEADER_ID_MAX);
                     }
 
-#if 1 // SEGFAULTS
                     // Data Annotations
                     capture_data_annotations(full_header_buffer, &header_metadata->data_annotation_tags, &header_metadata->data_annotation_tag_size);
-#endif
+                    match_data_annotation_types(header_metadata->data_annotation_tags, header_metadata->data_annotation_tag_size);
 
                     table->num_headers++;
                 }
@@ -523,7 +589,7 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                     if (table->header_metadata[i].data_annotation_tag_size > 0) {
                         log_debug("Data Annotation Count %d", table->header_metadata[i].data_annotation_tag_size);
                         for (int j = 0; j < table->header_metadata[i].data_annotation_tag_size; j++) {
-                            log_debug("Data Annotation %d: %s", j, table->header_metadata[i].data_annotation_tags[j].raw);
+                            log_debug("Data Annotation %d: %s (%u)", j, table->header_metadata[i].data_annotation_tags[j].raw, table->header_metadata[i].data_annotation_tags[j].type);
                         }
                     }
                 }
@@ -545,7 +611,7 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
           psv_clear_table(table);
         }
             break;
-        
+
         case PSV_TABLE_PARSING_POTENTIAL_HEADER:
             // Check if actual header by checking if there is enough '|---|'
             if (line[0] == '|') {
@@ -610,15 +676,15 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
 
 /**
  * @brief Parses a single data row from a file stream and constructs a PsvDataRow.
- * 
- * This function reads a line from the input file stream and parses it as a single data row 
- * of a table in Markdown format. It constructs a PsvDataRow containing the parsed data cells, 
- * corresponding to the table headers. The function assumes that the table is in the data row 
+ *
+ * This function reads a line from the input file stream and parses it as a single data row
+ * of a table in Markdown format. It constructs a PsvDataRow containing the parsed data cells,
+ * corresponding to the table headers. The function assumes that the table is in the data row
  * parsing state and expects the input file stream to contain valid data row lines.
- * 
+ *
  * @param input The file stream from which to read the data row.
  * @param table Pointer to the PsvTable structure representing the table.
- * @return A PsvDataRow containing the parsed data cells of the row, or NULL if the end of the 
+ * @return A PsvDataRow containing the parsed data cells of the row, or NULL if the end of the
  *         table is reached or an error occurs.
  */
 PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
@@ -666,7 +732,7 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
             table->parsing_state = PSV_TABLE_PARSING_END;
         }
     }
-    
+
     // Release getline's buffer
     free(line);
     return data_row;
@@ -674,11 +740,11 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
 
 /**
  * @brief Frees memory allocated for a single data row of a PsvTable.
- * 
+ *
  * This function deallocates memory previously allocated for a single data row of a PsvTable,
  * including the memory for each data cell within the row. It sets the pointers to NULL after
  * freeing the memory to prevent dangling references.
- * 
+ *
  * @param table Pointer to the PsvTable structure representing the table.
  * @param dataRowPtr Pointer to the PsvDataRow to be freed.
  */
@@ -697,12 +763,12 @@ void psv_parse_table_free_row(PsvTable *table, PsvDataRow *dataRowPtr) {
 
 /**
  * @brief Skips the current row while parsing a PsvTable.
- * 
+ *
  * This function reads a line from the input file stream and determines whether it represents a data row
  * of the table. If the line begins with a '|', it is considered a data row, and the function returns true,
  * indicating that the row was found and skipped. If the line does not begin with a '|', it signifies the
  * end of the table, and the function sets the parsing state of the table to indicate the end.
- * 
+ *
  * @param input Pointer to the input file stream.
  * @param table Pointer to the PsvTable structure representing the table being parsed.
  * @return True if a data row was found and skipped, false otherwise.
@@ -733,11 +799,11 @@ bool psv_parse_skip_table_row(FILE *input, PsvTable *table) {
 
 /**
  * @brief Parses a table from a stream input.
- * 
+ *
  * This function parses a table from the specified input file stream. It starts by parsing the table header
  * to extract metadata and column names. Then, it reads and parses each data row of the table until the end
  * of the table is reached. Each parsed row is stored in the PsvTable structure.
- * 
+ *
  * @param input Pointer to the input file stream.
  * @param defaultTableID Default ID to assign to the table if no ID is specified in the table header.
  * @return A pointer to the parsed PsvTable structure, or NULL if an error occurred during parsing.
@@ -753,7 +819,7 @@ PsvTable *psv_parse_table(FILE *input, char *defaultTableID) {
     }
 
     char **data_row = NULL;
-    
+
     // Parse each data row of the table until the end of the table is reached
     while ((data_row = psv_parse_table_row(input, table)) != NULL) {
         // Reallocate memory for data rows and store the parsed row

@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+#include "cbor_constants.h"
+
 #define PSV_TABLE_ID_MAX 255
 #define PSV_HEADER_ID_MAX 255
 
@@ -34,7 +36,13 @@ typedef enum {
     // Basic CBOR Binary compatible atomic value
     PSV_DATA_ANNOTATION_HEX,         ///< [hex] Used to store binary data in hexadecimal format. Similar to SQLite BLOB.
     PSV_DATA_ANNOTATION_BASE64,      ///< [base64] Used to store binary data in Base64 encoding. Similar to SQLite BLOB.
-    PSV_DATA_ANNOTATION_DATA_URI     ///< [dataURI] Used to store binary data encoded as data URIs. Similar to SQLite BLOB.
+    PSV_DATA_ANNOTATION_DATA_URI,    ///< [dataURI] Used to store binary data encoded as data URIs. Similar to SQLite BLOB.
+
+    // Semantics
+    PSV_DATA_ANNOTATION_DATETIME,    ///< [datetime] Standard date/time string https://en.wikipedia.org/wiki/ISO_8601
+    PSV_DATA_ANNOTATION_UUID,        ///< [uuid] Universally unique identifier https://en.wikipedia.org/wiki/Universally_unique_identifier
+
+    PSV_DATA_ANNOTATION_MAX
 } PsvDataAnnotationType;
 
 // Note: UUIDs, DATETIMEs, and other semantic types are represented using CBOR semantic tags whose numeric id
@@ -50,9 +58,10 @@ typedef enum {
     PSV_TABLE_PARSING_END,
 } PsvTableParsingState;
 
-
 typedef struct {
     char* raw;
+    PsvDataAnnotationType type;
+    cbor_tag_t tag;
 
     // Use this flag to track if a tag has already been processed downstream
     // e.g. string converted to float when '[float]'

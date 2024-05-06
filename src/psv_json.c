@@ -12,35 +12,29 @@ cJSON *psv_json_create_table_single_row(PsvTable *table, char **data_row_entry) 
         const char *key = header_metadata->id;
         const char *data = data_row_entry[i];
         if (data) {
-#if 0
-            // Dev Note: This is horribly inefficient as it is searching each row multiple times, but works!
-            PsvBaseEncodingType base_encoding = psv_get_base_encoding_type(table->headers[j]);
-
-            switch (base_encoding) {
-            case PSV_BASE_TYPE_INTEGER: {
-                cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNumber(atoi(data)));
-                } break;
-
-            case PSV_BASE_TYPE_FLOAT: {
-                cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNumber(atof(data)));
-                } break;
-
-            case PSV_BASE_TYPE_BOOL: {
-                bool isTrue = strcmp(data, "true") == 0 || strcmp(data, "yes") == 0 || strcmp(data, "active") == 0;
-                cJSON_AddItemToObject(single_row_json, key, cJSON_CreateBool(isTrue));
-                } break;
-
-            // By default and for other values that cannot be stored in json cleanly, use string
-            case PSV_BASE_TYPE_TEXT:
-            case PSV_BASE_TYPE_HEX:
-            case PSV_BASE_TYPE_BASE64:
-            case PSV_BASE_TYPE_DATA_URI: {
+            if (header_metadata->data_annotation_tag_size > 0) {
+                // Data Annotation Available
+                PsvDataAnnotationType base_type = header_metadata->data_annotation_tags[0].type;
+                if (base_type == PSV_DATA_ANNOTATION_INTEGER) {
+                    cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNumber(atoi(data)));
+                    header_metadata->data_annotation_tags[0].processed = true;
+                } else if (base_type == PSV_DATA_ANNOTATION_FLOAT) {
+                    cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNumber(atof(data)));
+                    header_metadata->data_annotation_tags[0].processed = true;
+                } else if (base_type == PSV_DATA_ANNOTATION_BOOL) {
+                    const bool isTrue = strcmp(data, "true") == 0 || strcmp(data, "yes") == 0 || strcmp(data, "active") == 0;
+                    cJSON_AddItemToObject(single_row_json, key, cJSON_CreateBool(isTrue));
+                    header_metadata->data_annotation_tags[0].processed = true;
+                } else if (base_type == PSV_DATA_ANNOTATION_TEXT) {
+                    cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
+                    header_metadata->data_annotation_tags[0].processed = true;
+                } else {
+                    cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
+                }
+            } else {
+                // Data Annotation Not Used. Default to string handling
                 cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
-                } break;
             }
-#else
-            cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
-#endif
         }
     }
     return single_row_json;
@@ -73,6 +67,21 @@ cJSON *psv_json_create_table_json(PsvTable *table) {
         cJSON_AddItemToArray(keys_json, cJSON_CreateString(header_metadata->id));
     }
     cJSON_AddItemToObject(table_json, "keys", keys_json);
+
+    cJSON *data_annotation_json = cJSON_CreateArray();
+    for (int i = 0; i < table->num_headers; i++) {
+        PsvHeaderMetadataField *header_metadata = &table->header_metadata[i];
+
+        cJSON *data_annotation_entry_json = cJSON_CreateArray();
+        for (int j = 0; j < header_metadata->data_annotation_tag_size; j++) {
+            if (!header_metadata->data_annotation_tags[j].processed) {
+                cJSON_AddItemToArray(data_annotation_entry_json, cJSON_CreateString(header_metadata->data_annotation_tags[j].raw));
+            }
+        }
+
+        cJSON_AddItemToArray(data_annotation_json, data_annotation_entry_json);
+    }
+    cJSON_AddItemToObject(table_json, "data_annotation", data_annotation_json);
 
     cJSON *rows_json = psv_json_create_table_rows(table);
     cJSON_AddItemToObject(table_json, "rows", rows_json);

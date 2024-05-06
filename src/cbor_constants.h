@@ -1,4 +1,6 @@
 
+#ifndef CBOR_CONSTANTS_H
+#define CBOR_CONSTANTS_H
 // IANA CBOR Headers
 // Source: https://github.com/mofosyne/iana-headers
 
@@ -412,3 +414,6 @@ typedef enum cbor_tag_t {
   CBOR_TAG_INVALID_64BIT = 18446744073709551615ULL
 } cbor_tag_t;
 
+
+
+#endif
