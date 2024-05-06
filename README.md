@@ -56,7 +56,7 @@ To parse Markdown tables from standard input:
 
 ```bash
 make && ./psv << 'HEREDOC'
-| Name    | Age (Years) | City Name |
+| Name    | Age [float] | City Name |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
@@ -64,7 +64,7 @@ make && ./psv << 'HEREDOC'
 | Charlie | 19  | London       |
 
 {#test2}
-| Name    | Age | City         |
+| Name    | Age [int] | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32  | San Francisco|
@@ -76,8 +76,8 @@ HEREDOC
 The above command would give a response that may look like below
 
 ```json
-{"id":"table1","headers":["Name","Age (Years)","City Name"],"keys":["name","age","city_name"],"rows":[{"name":"Alice","age":"25","city_name":"New York"},{"name":"Bob","age":"32.4","city_name":"San Francisco"},{"name":"Bob","age":"32"},{"name":"Charlie","age":"19","city_name":"London"}]}
-{"id":"test2","headers":["Name","Age","City"],"keys":["name","age","city"],"rows":[{"name":"Alice","age":"25","city":"New York"},{"name":"Bob","age":"32","city":"San Francisco"},{"name":"Bob","age":"32","city":"Melbourne"},{"name":"Charlie","age":"19","city":"London"}]}
+{"id":"table1","headers":["Name","Age [float]","City Name"],"keys":["name","age","city_name"],"data_annotation":[[],[],[]],"rows":[{"name":"Alice","age":25,"city_name":"New York"},{"name":"Bob","age":32.4,"city_name":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city_name":"London"}]}
+{"id":"test2","headers":["Name","Age [int]","City"],"keys":["name","age","city"],"data_annotation":[[],[],[]],"rows":[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32,"city":"San Francisco"},{"name":"Bob","age":32,"city":"Melbourne"},{"name":"Charlie","age":19,"city":"London"}]}
 ```
 
 There is also a compact mode
@@ -85,14 +85,14 @@ There is also a compact mode
 
 ```bash
 make && ./psv -c << 'HEREDOC'
-| Name    | Age | City         |
+| Name    | Age [float] | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
 | Bob     | 32  |
 | Charlie | 19  | London       |
 
-| Name    | Age | City         |
+| Name    | Age [int] | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32  | San Francisco|
@@ -104,8 +104,8 @@ HEREDOC
 which has a more compact representation
 
 ```json
-[{"name":"Alice","age":"25","city":"New York"},{"name":"Bob","age":"32.4","city":"San Francisco"},{"name":"Bob","age":"32"},{"name":"Charlie","age":"19","city":"London"}]
-[{"name":"Alice","age":"25","city":"New York"},{"name":"Bob","age":"32","city":"San Francisco"},{"name":"Bob","age":"32","city":"Melbourne"},{"name":"Charlie","age":"19","city":"London"}]
+[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32.4,"city":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city":"London"}]
+[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32,"city":"San Francisco"},{"name":"Bob","age":32,"city":"Melbourne"},{"name":"Charlie","age":19,"city":"London"}]
 ```
 
 Finally you can select table by ID
@@ -113,7 +113,7 @@ Finally you can select table by ID
 ```bash
 make && ./psv --id dog -c << 'HEREDOC'
 {#cat}
-| Name    | Age | City         |
+| Name    | Age [float] | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32.4  | San Francisco|
@@ -121,7 +121,7 @@ make && ./psv --id dog -c << 'HEREDOC'
 | Charlie | 19  | London       |
 
 {#dog}
-| Name    | Age | City         |
+| Name    | Age [int] | City         |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32  | San Francisco|
@@ -133,10 +133,10 @@ HEREDOC
 Which would output just the table marked as dog. Note that because we are in single table and compact row mode, this program will switch to row streaming mode. This allows for streaming very very large files with lots and lots of rows.
 
 ```json
-{"name":"Alice","age":"25","city":"New York"}
-{"name":"Bob","age":"32","city":"San Francisco"}
-{"name":"Bob","age":"32","city":"Melbourne"}
-{"name":"Charlie","age":"19","city":"London"}
+{"name":"Alice","age":25,"city":"New York"}
+{"name":"Bob","age":32,"city":"San Francisco"}
+{"name":"Bob","age":32,"city":"Melbourne"}
+{"name":"Charlie","age":19,"city":"London"}
 ```
 
 To specify an output file:
@@ -161,7 +161,7 @@ You can pipe results from psv into jq
 ```bash
 make && ./psv --id dog << 'HEREDOC' | jq
 {#dog}
-| Name    | Age | City         |
+| Name    | Age [int] | City [str] |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32  | San Francisco|
@@ -176,7 +176,7 @@ or
 ```bash
 make && ./psv -t 1 << 'HEREDOC' | jq
 {#dog}
-| Name    | Age | City         |
+| Name    | Age [int] | City [str] |
 | ------- | --- | ------------ |
 | Alice   | 25  | New York     |
 | Bob     | 32  | San Francisco|
@@ -199,6 +199,11 @@ Which would result in a pretty printed output by jq
     "name",
     "age",
     "city"
+  ],
+  "data_annotation": [
+    [],
+    [],
+    []
   ],
   "rows": [
     {

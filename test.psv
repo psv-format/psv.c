@@ -1,5 +1,5 @@
 {#personnel}
-| ID       [uuid] [unique] [key] {#id} | Name     | Birthday [date] | Occupation        | Country   | Favorite Food |
+| ID [str] [uuid] [unique] [key] {#id} | Name     | Birthday [date] | Occupation        | Country   | Favorite Food |
 | ------------------------------------ | -------- | --------------- | ----------------- | --------- | ------------- |
 | 0b32a75e-e190-4a71-b0e1-45e0d826584f | Alice    | 1994-05-15      | Software Engineer | USA       | Pizza         |
 | 1e6e3e5a-f6cf-4b30-bc42-5365418604a1 | Bob      | 1989-08-20      | Doctor            | UK        | Sushi         |

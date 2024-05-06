@@ -84,6 +84,7 @@ static void match_data_annotation_types(PsvDataAnnotationField *data_annotation_
             if (match) {
                 data_annotation_array[i].type = data_annotation_mappings[j].annotation_type;
                 data_annotation_array[i].tag = data_annotation_mappings[j].tag;
+                data_annotation_array[i].processed = false;
                 break;
             }
         }
@@ -270,6 +271,8 @@ static void capture_data_annotations(const char *header_buffer, PsvDataAnnotatio
         (*data_annotation_array)[*num_data_annotation_tags].raw = malloc((tag_length + 1) * sizeof(char));
         memmove((*data_annotation_array)[*num_data_annotation_tags].raw, token_start, tag_length);
         (*data_annotation_array)[*num_data_annotation_tags].raw[tag_length] = '\0';
+        (*data_annotation_array)[*num_data_annotation_tags].tag = CBOR_TAG_INVALID_64BIT;
+        (*data_annotation_array)[*num_data_annotation_tags].processed = false;
 
         *num_data_annotation_tags = *num_data_annotation_tags + 1;
     }

@@ -72,6 +72,23 @@ cJSON *psv_json_create_table_json(PsvTable *table) {
     for (int i = 0; i < table->num_headers; i++) {
         PsvHeaderMetadataField *header_metadata = &table->header_metadata[i];
 
+        // Mark certain data annotation as already processed if already transformed
+        // TODO: Not totally happy with this method, but this shall do for now
+        if (header_metadata->data_annotation_tag_size > 0) {
+            // Data Annotation Available
+            PsvDataAnnotationType base_type = header_metadata->data_annotation_tags[0].type;
+            if (base_type == PSV_DATA_ANNOTATION_INTEGER) {
+                header_metadata->data_annotation_tags[0].processed = true;
+            } else if (base_type == PSV_DATA_ANNOTATION_FLOAT) {
+                header_metadata->data_annotation_tags[0].processed = true;
+            } else if (base_type == PSV_DATA_ANNOTATION_BOOL) {
+                header_metadata->data_annotation_tags[0].processed = true;
+            } else if (base_type == PSV_DATA_ANNOTATION_TEXT) {
+                header_metadata->data_annotation_tags[0].processed = true;
+            }
+        }
+
+        // Add data annotation
         cJSON *data_annotation_entry_json = cJSON_CreateArray();
         for (int j = 0; j < header_metadata->data_annotation_tag_size; j++) {
             if (!header_metadata->data_annotation_tags[j].processed) {
