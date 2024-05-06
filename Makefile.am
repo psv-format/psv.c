@@ -27,7 +27,7 @@ open_docs:
 all-local: doxygen
 
 # Setup Python Enviroments
-.PHONY: generate
+.PHONY: update-cbor-tags
 update-cbor-tags:
 	python3 -m venv venv
 	. venv/bin/activate

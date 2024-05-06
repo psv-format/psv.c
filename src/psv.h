@@ -26,7 +26,7 @@ typedef enum {
     PSV_DATA_ANNOTATION_UNKNOWN,
 
     // Basic JSON compatible atomic value
-    PSV_DATA_ANNOTATION_TEXT,    ///< [string][str] Used to store text strings, which can represent various types of textual data. Similar to SQLite TEXT.
+    PSV_DATA_ANNOTATION_TEXT,        ///< [string][str] Used to store text strings, which can represent various types of textual data. Similar to SQLite TEXT.
     PSV_DATA_ANNOTATION_INTEGER,     ///< [integer][int] Used to store integer numbers, suitable for representing whole numbers without decimal points. Similar to SQLite INTEGER.
     PSV_DATA_ANNOTATION_FLOAT,       ///< [float] Used to store floating-point numbers, allowing for decimal numbers with both integer and fractional parts. Similar to SQLite REAL.
     PSV_DATA_ANNOTATION_BOOL,        ///< [bool] Used to store boolean values, represented as integers (0 for false, 1 for true). Similar to SQLite INTEGER.
@@ -51,7 +51,13 @@ typedef enum {
 } PsvTableParsingState;
 
 
-typedef char* PsvDataAnnotationField;
+typedef struct {
+    char* raw;
+
+    // Use this flag to track if a tag has already been processed downstream
+    // e.g. string converted to float when '[float]'
+    bool processed;
+} PsvDataAnnotationField;
 
 typedef struct {
     char id[PSV_HEADER_ID_MAX];

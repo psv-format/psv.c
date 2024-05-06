@@ -142,6 +142,29 @@ static char *tokenize_escaped_delim(char *str, char delim, char **tokenization_s
     return token_start;
 }
 
+/**
+ * @brief Captures data annotations from a header buffer.
+ * 
+ * This function extracts data annotations from a header buffer 
+ * and populates an array with the extracted annotations.
+ * 
+ * @param header_buffer The buffer containing the header with data annotations.
+ * @param data_annotation_array A pointer to an array of PsvDataAnnotationField structs 
+ *                              where the extracted annotations will be stored. 
+ *                              This array will be reallocated as needed to accommodate 
+ *                              all annotations found in the header.
+ * @param num_data_annotation_tags A pointer to a variable storing the number of data annotations 
+ *                                 currently present in the data_annotation_array. 
+ *                                 This variable will be updated to reflect the total number 
+ *                                 of annotations after this function executes.
+ * 
+ * @remarks This function scans through the header buffer to find data annotation tags, 
+ *          enclosed within square brackets ([]). It ignores markdown links in the format 
+ *          `[example](http:example.com)` and only captures standalone data annotations.
+ * 
+ * @note The caller is responsible for freeing the memory allocated for the raw field of each 
+ *       PsvDataAnnotationField struct and for the entire data_annotation_array when it's no longer needed.
+ */
 static void capture_data_annotations(const char *header_buffer, PsvDataAnnotationField **data_annotation_array, size_t *num_data_annotation_tags) {
     const char *token_start = header_buffer; 
     const char *token_end = header_buffer;
@@ -173,13 +196,13 @@ static void capture_data_annotations(const char *header_buffer, PsvDataAnnotatio
             continue;
 
         // Resize Annotation Field Array
-        *data_annotation_array = (PsvDataAnnotationField*) realloc(*data_annotation_array, (*num_data_annotation_tags + 1) * sizeof(PsvDataAnnotationField*));
+        *data_annotation_array = (PsvDataAnnotationField*) realloc(*data_annotation_array, (*num_data_annotation_tags + 1) * sizeof(PsvDataAnnotationField));
         assert(*data_annotation_array != NULL);
 
         // Add Annotation Field String To Array
-        (*data_annotation_array)[*num_data_annotation_tags] = malloc((tag_length + 1) * sizeof(char));
-        memmove((*data_annotation_array)[*num_data_annotation_tags], token_start, tag_length);
-        (*data_annotation_array)[*num_data_annotation_tags][tag_length] = '\0';
+        (*data_annotation_array)[*num_data_annotation_tags].raw = malloc((tag_length + 1) * sizeof(char));
+        memmove((*data_annotation_array)[*num_data_annotation_tags].raw, token_start, tag_length);
+        (*data_annotation_array)[*num_data_annotation_tags].raw[tag_length] = '\0';
 
         *num_data_annotation_tags = *num_data_annotation_tags + 1;
     }
@@ -331,9 +354,8 @@ static void psv_clear_table(PsvTable *table) {
             // Free Data Annotation
             if (header_metadata->data_annotation_tags) {
                 for (int j = 0; j < header_metadata->data_annotation_tag_size; j++) {
-                    PsvDataAnnotationField data_annotation_field = header_metadata->data_annotation_tags[j];
-                    free(data_annotation_field);
-                    data_annotation_field = NULL;
+                    free(header_metadata->data_annotation_tags[j].raw);
+                    header_metadata->data_annotation_tags[j].raw = NULL;
                 }
                 free(header_metadata->data_annotation_tags);
                 header_metadata->data_annotation_tags = NULL;
@@ -501,7 +523,7 @@ PsvTable * psv_parse_table_header(FILE *input, char *defaultTableID) {
                     if (table->header_metadata[i].data_annotation_tag_size > 0) {
                         log_debug("Data Annotation Count %d", table->header_metadata[i].data_annotation_tag_size);
                         for (int j = 0; j < table->header_metadata[i].data_annotation_tag_size; j++) {
-                            log_debug("Data Annotation %d: %s", j, table->header_metadata[i].data_annotation_tags[j]);
+                            log_debug("Data Annotation %d: %s", j, table->header_metadata[i].data_annotation_tags[j].raw);
                         }
                     }
                 }
