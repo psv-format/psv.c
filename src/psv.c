@@ -291,6 +291,9 @@ static void capture_data_annotations(const char *header_buffer, PsvDataAnnotatio
  *       or create a copy of the original string if needed.
  */
 static char *trim_whitespace(char *str) {
+    if (str == NULL)
+        return NULL;
+
     // Trim leading space
     while (isspace((unsigned char)*str)) {
         str++;
@@ -722,12 +725,14 @@ PsvDataRow psv_parse_table_row(FILE *input, PsvTable *table) {
             char *tokenization_state = NULL;
             for (int i = 0 ; i < table->num_headers ; i++) {
                 char *token = tokenize_escaped_delim(line + 1, '|', &tokenization_state);
-                if (token == NULL)
-                    break;
+                token = trim_whitespace(token);
+                if ((token == NULL) || (*token == '\0')) {
+                    continue;;
+                }
 
                 // Allocate memory for each data cell and copy the trimmed token
                 data_row[i] = malloc((strlen(token) + 1) * sizeof(char));
-                strcpy(data_row[i], trim_whitespace(token));
+                strcpy(data_row[i], token);
             }
         } else {
             // End of Table detected

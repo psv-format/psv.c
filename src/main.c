@@ -198,7 +198,7 @@ int main(int argc, char* argv[]) {
     }
 
 #if 0
-    log_set_level(LOG_TRACE);
+    log_set_level(LOG_DEBUG);
 #else
     log_set_quiet(true);
 #endif

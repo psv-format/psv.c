@@ -76,7 +76,7 @@ HEREDOC
 The above command would give a response that may look like below
 
 ```json
-{"id":"table1","headers":["Name","Age [float]","City Name"],"keys":["name","age","city_name"],"data_annotation":[[],["float"],[]],"rows":[{"name":"Alice","age":25,"city_name":"New York"},{"name":"Bob","age":32.4,"city_name":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city_name":"London"}]}
+{"id":"table1","headers":["Name","Age [float]","City Name"],"keys":["name","age","city_name"],"data_annotation":[[],["float"],[]],"rows":[{"name":"Alice","age":25,"city_name":"New York"},{"name":"Bob","age":32.4,"city_name":"San Francisco"},{"name":"Bob","age":32,"city_name":null},{"name":"Charlie","age":19,"city_name":"London"}]}
 {"id":"test2","headers":["Name","Age [int]","City [str]","Want Candy (jellybeans) [bool]"],"keys":["name","age","city","want_candy"],"data_annotation":[[],["int"],["str"],["bool"]],"rows":[{"name":"Alice","age":25,"city":"New York","want_candy":true},{"name":"Bob","age":32,"city":"San Francisco","want_candy":false},{"name":"Bob","age":32,"city":"Melbourne","want_candy":true},{"name":"Charlie","age":19,"city":"London","want_candy":true}]}
 ```
 
@@ -104,7 +104,7 @@ HEREDOC
 which has a more compact representation
 
 ```json
-[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32.4,"city":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city":"London"}]
+[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32.4,"city":"San Francisco"},{"name":"Bob","age":32,"city":null},{"name":"Charlie","age":19,"city":"London"}]
 [{"name":"Alice","age":25,"city":"New York","want_candy":true},{"name":"Bob","age":32,"city":"San Francisco","want_candy":false},{"name":"Bob","age":32,"city":"Melbourne","want_candy":true},{"name":"Charlie","age":19,"city":"London","want_candy":true}]
 ```
 

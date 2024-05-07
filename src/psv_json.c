@@ -52,6 +52,8 @@ cJSON *psv_json_create_table_single_row(PsvTable *table, char **data_row_entry) 
                     cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
                 }
             }
+        } else {
+            cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNull());
         }
     }
     return single_row_json;
