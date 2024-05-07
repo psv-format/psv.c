@@ -1,14 +1,14 @@
 {#personnel}
-| ID [str] [uuid] [unique] [key] {#id} | Name     | Birthday [date] | Occupation        | Country   | Favorite Food |
-| ------------------------------------ | -------- | --------------- | ----------------- | --------- | ------------- |
-| 0b32a75e-e190-4a71-b0e1-45e0d826584f | Alice    | 1994-05-15      | Software Engineer | USA       | Pizza         |
-| 1e6e3e5a-f6cf-4b30-bc42-5365418604a1 | Bob      | 1989-08-20      | Doctor            | UK        | Sushi         |
-| 9a7f548f-0854-4c23-bb39-1aefb48b47ae | Charlie  | 1996-12-10      | Graphic Designer  | Canada    | Tacos         |
-| d12cc354-8845-4dc2-91b0-d714f2a33ef3 | David    | 1982-03-25      | Teacher           | Australia | Pasta         |
-| cf0294f1-8d71-4e01-9619-62ebfdd2a47d | Emma     | 1989-11-02      | Accountant        | Germany   | Steak         |
-| e4fcb648-7f80-464d-9a0d-bc00ac9d5f58 | Frank    | 1979-06-30      | Chef              | France    | Croissant     |
-| b5c79927-5250-4919-848d-68f0c5d2e11d | Grace    | 1993-09-18      | Nurse             | Spain     | Paella        |
-| f0d31595-0d11-4f33-b9b1-c8b95eb354a1 | Henry    | 1987-04-11      | Architect         | Italy     | Gelato        |
-| bfc1db9b-f9e1-4dd9-b1d1-22f74264e0e0 | Isabella | 1991-07-29      | Lawyer            | Brazil    | Feijoada      |
-| 149118b2-08e0-4e6a-bc6a-f56184f7a7fc | John     | 1980-10-05      | Scientist         | Japan     | Ramen         |
-| b38e1601-60ff-4458-8ae5-6efdfaa69d0f | Mia      | 1997-02-28      | Writer            | Ireland   | Irish Stew    |
+| ID [str] [uuid] [unique] [key] {#id} | Name     | Birthday [date] | Occupation        | Country   | Favorite Food | Want Candy (jellybeans) [bool] |
+| ------------------------------------ | -------- | --------------- | ----------------- | --------- | ------------- | ------------------------------ |
+| 0b32a75e-e190-4a71-b0e1-45e0d826584f | Alice    | 1994-05-15      | Software Engineer | USA       | Pizza         | yes                            |
+| 1e6e3e5a-f6cf-4b30-bc42-5365418604a1 | Bob      | 1989-08-20      | Doctor            | UK        | Sushi         | no                             |
+| 9a7f548f-0854-4c23-bb39-1aefb48b47ae | Charlie  | 1996-12-10      | Graphic Designer  | Canada    | Tacos         | yes                            |
+| d12cc354-8845-4dc2-91b0-d714f2a33ef3 | David    | 1982-03-25      | Teacher           | Australia | Pasta         | yes                            |
+| cf0294f1-8d71-4e01-9619-62ebfdd2a47d | Emma     | 1989-11-02      | Accountant        | Germany   | Steak         | no                             |
+| e4fcb648-7f80-464d-9a0d-bc00ac9d5f58 | Frank    | 1979-06-30      | Chef              | France    | Croissant     | no                             |
+| b5c79927-5250-4919-848d-68f0c5d2e11d | Grace    | 1993-09-18      | Nurse             | Spain     | Paella        | no                             |
+| f0d31595-0d11-4f33-b9b1-c8b95eb354a1 | Henry    | 1987-04-11      | Architect         | Italy     | Gelato        | yes                            |
+| bfc1db9b-f9e1-4dd9-b1d1-22f74264e0e0 | Isabella | 1991-07-29      | Lawyer            | Brazil    | Feijoada      | yes                            |
+| 149118b2-08e0-4e6a-bc6a-f56184f7a7fc | John     | 1980-10-05      | Scientist         | Japan     | Ramen         | no                             |
+| b38e1601-60ff-4458-8ae5-6efdfaa69d0f | Mia      | 1997-02-28      | Writer            | Ireland   | Irish Stew    | yes                            |

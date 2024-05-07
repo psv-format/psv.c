@@ -62,10 +62,6 @@ typedef struct {
     char* raw;
     PsvDataAnnotationType type;
     cbor_tag_t tag;
-
-    // Use this flag to track if a tag has already been processed downstream
-    // e.g. string converted to float when '[float]'
-    bool processed;
 } PsvDataAnnotationField;
 
 typedef struct {

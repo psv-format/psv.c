@@ -64,20 +64,20 @@ make && ./psv << 'HEREDOC'
 | Charlie | 19  | London       |
 
 {#test2}
-| Name    | Age [int] | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 HEREDOC
 ```
 
 The above command would give a response that may look like below
 
 ```json
-{"id":"table1","headers":["Name","Age [float]","City Name"],"keys":["name","age","city_name"],"data_annotation":[[],[],[]],"rows":[{"name":"Alice","age":25,"city_name":"New York"},{"name":"Bob","age":32.4,"city_name":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city_name":"London"}]}
-{"id":"test2","headers":["Name","Age [int]","City"],"keys":["name","age","city"],"data_annotation":[[],[],[]],"rows":[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32,"city":"San Francisco"},{"name":"Bob","age":32,"city":"Melbourne"},{"name":"Charlie","age":19,"city":"London"}]}
+{"id":"table1","headers":["Name","Age [float]","City Name"],"keys":["name","age","city_name"],"data_annotation":[[],["float"],[]],"rows":[{"name":"Alice","age":25,"city_name":"New York"},{"name":"Bob","age":32.4,"city_name":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city_name":"London"}]}
+{"id":"test2","headers":["Name","Age [int]","City [str]","Want Candy (jellybeans) [bool]"],"keys":["name","age","city","want_candy"],"data_annotation":[[],["int"],["str"],["bool"]],"rows":[{"name":"Alice","age":25,"city":"New York","want_candy":true},{"name":"Bob","age":32,"city":"San Francisco","want_candy":false},{"name":"Bob","age":32,"city":"Melbourne","want_candy":true},{"name":"Charlie","age":19,"city":"London","want_candy":true}]}
 ```
 
 There is also a compact mode
@@ -92,12 +92,12 @@ make && ./psv -c << 'HEREDOC'
 | Bob     | 32  |
 | Charlie | 19  | London       |
 
-| Name    | Age [int] | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 HEREDOC
 ```
 
@@ -105,7 +105,7 @@ which has a more compact representation
 
 ```json
 [{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32.4,"city":"San Francisco"},{"name":"Bob","age":32},{"name":"Charlie","age":19,"city":"London"}]
-[{"name":"Alice","age":25,"city":"New York"},{"name":"Bob","age":32,"city":"San Francisco"},{"name":"Bob","age":32,"city":"Melbourne"},{"name":"Charlie","age":19,"city":"London"}]
+[{"name":"Alice","age":25,"city":"New York","want_candy":true},{"name":"Bob","age":32,"city":"San Francisco","want_candy":false},{"name":"Bob","age":32,"city":"Melbourne","want_candy":true},{"name":"Charlie","age":19,"city":"London","want_candy":true}]
 ```
 
 Finally you can select table by ID
@@ -121,22 +121,22 @@ make && ./psv --id dog -c << 'HEREDOC'
 | Charlie | 19  | London       |
 
 {#dog}
-| Name    | Age [int] | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 HEREDOC
 ```
 
 Which would output just the table marked as dog. Note that because we are in single table and compact row mode, this program will switch to row streaming mode. This allows for streaming very very large files with lots and lots of rows.
 
 ```json
-{"name":"Alice","age":25,"city":"New York"}
-{"name":"Bob","age":32,"city":"San Francisco"}
-{"name":"Bob","age":32,"city":"Melbourne"}
-{"name":"Charlie","age":19,"city":"London"}
+{"name":"Alice","age":25,"city":"New York","want_candy":true}
+{"name":"Bob","age":32,"city":"San Francisco","want_candy":false}
+{"name":"Bob","age":32,"city":"Melbourne","want_candy":true}
+{"name":"Charlie","age":19,"city":"London","want_candy":true}
 ```
 
 To specify an output file:
@@ -161,12 +161,12 @@ You can pipe results from psv into jq
 ```bash
 make && ./psv --id dog << 'HEREDOC' | jq
 {#dog}
-| Name    | Age [int] | City [str] |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]   | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------ | ------------------------------ |
+| Alice   | 25        | New York     | yes                            |
+| Bob     | 32        | San Francisco| no                             |
+| Bob     | 32        | Melbourne    | yes                            |
+| Charlie | 19        | London       | yes                            |
 HEREDOC
 ```
 
@@ -176,12 +176,12 @@ or
 ```bash
 make && ./psv -t 1 << 'HEREDOC' | jq
 {#dog}
-| Name    | Age [int] | City [str] |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 HEREDOC
 ```
 
@@ -192,39 +192,52 @@ Which would result in a pretty printed output by jq
   "id": "dog",
   "headers": [
     "Name",
-    "Age",
-    "City"
+    "Age [int]",
+    "City [str]",
+    "Want Candy (jellybeans) [bool]"
   ],
   "keys": [
     "name",
     "age",
-    "city"
+    "city",
+    "want_candy"
   ],
   "data_annotation": [
     [],
-    [],
-    []
+    [
+      "int"
+    ],
+    [
+      "str"
+    ],
+    [
+      "bool"
+    ]
   ],
   "rows": [
     {
       "name": "Alice",
-      "age": "25",
-      "city": "New York"
+      "age": 25,
+      "city": "New York",
+      "want_candy": true
     },
     {
       "name": "Bob",
-      "age": "32",
-      "city": "San Francisco"
+      "age": 32,
+      "city": "San Francisco",
+      "want_candy": false
     },
     {
       "name": "Bob",
-      "age": "32",
-      "city": "Melbourne"
+      "age": 32,
+      "city": "Melbourne",
+      "want_candy": true
     },
     {
       "name": "Charlie",
-      "age": "19",
-      "city": "London"
+      "age": 19,
+      "city": "London",
+      "want_candy": true
     }
   ]
 }
@@ -235,22 +248,22 @@ You can also output csv by piping though jq
 ```bash
 make && ./psv --id dog -c << 'HEREDOC' | jq -r 'map(.) | @csv'
 {#dog}
-| Name    | Age | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 HEREDOC
 ```
 
 which would result in this output
 
 ```csv
-"Alice","25","New York"
-"Bob","32","San Francisco"
-"Bob","32","Melbourne"
-"Charlie","19","London"
+"Alice",25,"New York",true
+"Bob",32,"San Francisco",false
+"Bob",32,"Melbourne",true
+"Charlie",19,"London",true
 ```
 
 ## Table Format
@@ -258,14 +271,14 @@ which would result in this output
 The .psv standard is currently in flux as we figure out what will work best, but this is a writeup about the current state and limitation of this psv.c convertor. In general the format looks like below and is based on [Github Flavored Markdown Tables (extension)](https://github.github.com/gfm/#tables-extension-) but with the addition of an optional [Consistent attribute syntax](https://talk.commonmark.org/t/consistent-attribute-syntax/272) header which is currently just for the table anchor ID for now.
 
 
-```
+```markdown
 {#id}
-| Name    | Age | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 ```
 
 * How to deal with vertical bars in string: Let's just keep [Github Table example 200](https://github.github.com/gfm/#example-200
@@ -283,7 +296,17 @@ Also regarding conversion to json:
 * All cells are assumed to be string by default and the user is expected to do the conversion themselves. This conservative data typing keeps the conversion process more consistent with less magic to go wrong.
   - Later on, we can figure out how to do semantic tagging and datatype annotation to more explicitly recommend a datatype and interpretation
 
-What's not yet done in psv.c but we should still add is that during the conversion of a string psv content to json string we need to automatically escape certain characters like quotes and tabs (and etc...).
+* We use data annotations `[<annotation tag>]` to indicate how each cell should be interpreted. Below are the supported basic tags and how it is converted to json.
+
+| data annotation | json value        | Notes                                    |
+| --------------- | ----------------- | ---------------------------------------- |
+| string          | string            | stores normal byte string                |
+| str             | string            | stores normal byte string                |
+| integer         | number            | round integer value                      |
+| int             | number            | round integer value                      |
+| float           | number            | floating point value                     |
+| bool            | "true" or "false" | yes/no, y/n, true/false, active/inactive |
+
 
 ## Dev Tips:
 
@@ -295,22 +318,13 @@ make && valgrind --leak-check=full \
          --track-origins=yes \
          --verbose \
          --log-file=valgrind-out.txt \
-         ./psv --output test.json testdoc.md testdoc.md
-```
-
-```bash
-make && valgrind --leak-check=full \
-         --show-leak-kinds=all \
-         --track-origins=yes \
-         --verbose \
-         --log-file=valgrind-out.txt \
-         ./psv -t 1 -c << 'HEREDOC'
-| Name    | Age | City         |
-| ------- | --- | ------------ |
-| Alice   | 25  | New York     |
-| Bob     | 32  | San Francisco|
-| Bob     | 32  | Melbourne    |
-| Charlie | 19  | London       |
+         ./psv -t 1 << 'HEREDOC'
+| Name    | Age [int] | City [str]    | Want Candy (jellybeans) [bool] |
+| ------- | --------- | ------------- | ------------------------------ |
+| Alice   | 25        | New York      | yes                            |
+| Bob     | 32        | San Francisco | no                             |
+| Bob     | 32        | Melbourne     | yes                            |
+| Charlie | 19        | London        | yes                            |
 HEREDOC
 ```
 
@@ -321,6 +335,11 @@ make && valgrind --leak-check=full \
          --verbose \
          --log-file=valgrind-out.txt \
          ./psv -t 1 test.psv
+```
+
+### GDB Testing
+
+```bash
 make && gdb --args ./psv -t 1 test.psv
 ```
 

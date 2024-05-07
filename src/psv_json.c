@@ -3,37 +3,54 @@
 #include <string.h>
 #include "psv_json.h"
 
+static PsvDataAnnotationType get_basic_type(PsvTable *table, size_t header_column) {
+    const PsvHeaderMetadataField *header_metadata = &table->header_metadata[header_column];
+    if (header_metadata->data_annotation_tag_size > 0) {
+        for (int i = 0; i < header_metadata->data_annotation_tag_size; i++) {    
+            const PsvDataAnnotationType base_type = header_metadata->data_annotation_tags[i].type;
+            if (base_type == PSV_DATA_ANNOTATION_INTEGER)
+                return base_type;
+
+            if (base_type == PSV_DATA_ANNOTATION_FLOAT)
+                return base_type;
+            
+            if (base_type == PSV_DATA_ANNOTATION_BOOL)
+                return base_type;
+            
+            if (base_type == PSV_DATA_ANNOTATION_TEXT)
+                return base_type;
+        }
+    }
+
+    return PSV_DATA_ANNOTATION_TEXT;
+}
 
 // Create JSON object of a single tabular row
 cJSON *psv_json_create_table_single_row(PsvTable *table, char **data_row_entry) {
     cJSON *single_row_json = cJSON_CreateObject();
     for (int i = 0; i < table->num_headers; i++) {
-        PsvHeaderMetadataField *header_metadata = &table->header_metadata[i];
+        const PsvHeaderMetadataField *header_metadata = &table->header_metadata[i];
         const char *key = header_metadata->id;
         const char *data = data_row_entry[i];
         if (data) {
-            if (header_metadata->data_annotation_tag_size > 0) {
-                // Data Annotation Available
-                PsvDataAnnotationType base_type = header_metadata->data_annotation_tags[0].type;
-                if (base_type == PSV_DATA_ANNOTATION_INTEGER) {
+            const PsvDataAnnotationType basic_type = get_basic_type(table, i);
+            switch (basic_type) {
+                case PSV_DATA_ANNOTATION_INTEGER: {
                     cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNumber(atoi(data)));
-                    header_metadata->data_annotation_tags[0].processed = true;
-                } else if (base_type == PSV_DATA_ANNOTATION_FLOAT) {
+                } break;
+                case PSV_DATA_ANNOTATION_FLOAT: {
                     cJSON_AddItemToObject(single_row_json, key, cJSON_CreateNumber(atof(data)));
-                    header_metadata->data_annotation_tags[0].processed = true;
-                } else if (base_type == PSV_DATA_ANNOTATION_BOOL) {
-                    const bool isTrue = strcmp(data, "true") == 0 || strcmp(data, "yes") == 0 || strcmp(data, "active") == 0;
+                } break;
+                case PSV_DATA_ANNOTATION_BOOL: {
+                    const bool isTrue = strcmp(data, "true") == 0 || strcmp(data, "yes") == 0 || strcmp(data, "active") == 0 || strcmp(data, "y") == 0;
                     cJSON_AddItemToObject(single_row_json, key, cJSON_CreateBool(isTrue));
-                    header_metadata->data_annotation_tags[0].processed = true;
-                } else if (base_type == PSV_DATA_ANNOTATION_TEXT) {
+                } break;
+                case PSV_DATA_ANNOTATION_TEXT: {
                     cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
-                    header_metadata->data_annotation_tags[0].processed = true;
-                } else {
+                } break;
+                default: {
                     cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
                 }
-            } else {
-                // Data Annotation Not Used. Default to string handling
-                cJSON_AddItemToObject(single_row_json, key, cJSON_CreateString(data));
             }
         }
     }
@@ -72,28 +89,10 @@ cJSON *psv_json_create_table_json(PsvTable *table) {
     for (int i = 0; i < table->num_headers; i++) {
         PsvHeaderMetadataField *header_metadata = &table->header_metadata[i];
 
-        // Mark certain data annotation as already processed if already transformed
-        // TODO: Not totally happy with this method, but this shall do for now
-        if (header_metadata->data_annotation_tag_size > 0) {
-            // Data Annotation Available
-            PsvDataAnnotationType base_type = header_metadata->data_annotation_tags[0].type;
-            if (base_type == PSV_DATA_ANNOTATION_INTEGER) {
-                header_metadata->data_annotation_tags[0].processed = true;
-            } else if (base_type == PSV_DATA_ANNOTATION_FLOAT) {
-                header_metadata->data_annotation_tags[0].processed = true;
-            } else if (base_type == PSV_DATA_ANNOTATION_BOOL) {
-                header_metadata->data_annotation_tags[0].processed = true;
-            } else if (base_type == PSV_DATA_ANNOTATION_TEXT) {
-                header_metadata->data_annotation_tags[0].processed = true;
-            }
-        }
-
         // Add data annotation
         cJSON *data_annotation_entry_json = cJSON_CreateArray();
         for (int j = 0; j < header_metadata->data_annotation_tag_size; j++) {
-            if (!header_metadata->data_annotation_tags[j].processed) {
-                cJSON_AddItemToArray(data_annotation_entry_json, cJSON_CreateString(header_metadata->data_annotation_tags[j].raw));
-            }
+            cJSON_AddItemToArray(data_annotation_entry_json, cJSON_CreateString(header_metadata->data_annotation_tags[j].raw));
         }
 
         cJSON_AddItemToArray(data_annotation_json, data_annotation_entry_json);
