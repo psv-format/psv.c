@@ -35,6 +35,22 @@ Options:
 For more information, use './psv --help'.
 ```
 
+### Quick Install From Source
+
+To install from source to usual location in linux
+
+```bash
+./configure --prefix=/usr/local
+make -j8
+sudo make install
+```
+
+Alternatively you can use this to define your own install path
+
+```bash
+sudo make install PREFIX=/usr/local
+```
+
 ### Generating Doxygen Documentation
 
 To generate Doxygen documentation for the project, follow these steps:
