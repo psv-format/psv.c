@@ -40,8 +40,14 @@ For more information, use './psv --help'.
 To install from source to usual location in linux
 
 ```bash
+# (Typical Debian) Install typical packages required for autotools and building a C project
+sudo apt install autoconf automake libtool build-essential
+
+# Setup Build System And Compile
 ./configure --prefix=/usr/local
 make -j8
+
+# Install Into System (So it's accessible anywhere)
 sudo make install
 ```
 
