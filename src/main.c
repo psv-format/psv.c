@@ -166,6 +166,7 @@ int main(int argc, char* argv[]) {
         {"compact", no_argument,       0, 'c'},
         {"help",    no_argument,       0, 'h'},
         {"version", no_argument,       0, 'v'},
+        {"debug",   no_argument,       0, 'd'},
         {0, 0, 0, 0}
     };
 
@@ -199,6 +200,11 @@ int main(int argc, char* argv[]) {
                 // Version Print
                 printf("%s-%s\n", PACKAGE_NAME, PACKAGE_VERSION);
                 exit(0);
+            case 'd':
+                // Enable Debug Output
+                log_set_level(LOG_DEBUG);
+                log_set_quiet(false);
+                break;
             case '?':
                 // Unknown Argument
                 usage(1);
