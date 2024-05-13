@@ -46,11 +46,12 @@ sudo apt install autoconf automake libtool build-essential
 # Setup Build System And Compile
 ./configure --prefix=/usr/local
 make -j8
+./psv --version # check it's locally working
 
 # Install Into System (So it's accessible anywhere)
 sudo make install
 which psv # psv now installed to /usr/local/bin/psv
-psv --version # check it's working (e.g. Expecting 'psv-<version>' to be printed )
+psv --version # check it's globally working
 ```
 
 If you don't want psv anymore, then you can also run
