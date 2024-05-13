@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "log.h"
@@ -147,6 +148,17 @@ int main(int argc, char* argv[]) {
     char* id_selector = NULL;
     char* output_file = NULL;
 
+#if 0
+    log_set_level(LOG_DEBUG);
+#else
+    log_set_quiet(true);
+#endif
+
+    // Print usage information if no arguments are provided or input is piped in
+    if (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO) && argc == 1) {
+        usage(1);
+    }
+
     static struct option long_options[] = {
         {"output",  required_argument, 0, 'o'},
         {"id",      required_argument, 0, 'i'},
@@ -196,12 +208,6 @@ int main(int argc, char* argv[]) {
                 usage(1);
         }
     }
-
-#if 0
-    log_set_level(LOG_DEBUG);
-#else
-    log_set_quiet(true);
-#endif
 
     log_info("%s-%s", PACKAGE_NAME, PACKAGE_VERSION);
 
