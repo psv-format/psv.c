@@ -49,6 +49,15 @@ make -j8
 
 # Install Into System (So it's accessible anywhere)
 sudo make install
+which psv # psv now installed to /usr/local/bin/psv
+psv --version # check it's working (e.g. Expecting 'psv-<version>' to be printed )
+```
+
+If you don't want psv anymore, then you can also run
+
+```bash
+# Remove psv
+sudo make uninstall
 ```
 
 Alternatively you can use this to define your own install path
