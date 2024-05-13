@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
     log_set_quiet(true);
 #endif
 
-    // Print usage information if no arguments are provided or input is piped in
+    // Print usage information if ran in terminal without any arguments or piping
     if (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO) && argc == 1) {
         usage(1);
     }
