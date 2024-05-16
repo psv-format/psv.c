@@ -44,6 +44,7 @@ To install from source to usual location in linux
 sudo apt install autoconf automake libtool build-essential
 
 # Setup Build System And Compile
+./bootstrap.sh
 ./configure --prefix=/usr/local
 make -j8
 ./psv --version # check it's locally working
