@@ -68,20 +68,6 @@ Alternatively you can use this to define your own install path
 sudo make install PREFIX=/usr/local
 ```
 
-### Generating Doxygen Documentation
-
-To generate Doxygen documentation for the project, follow these steps:
-
-1. **Install Doxygen**: If Doxygen is not already installed on your system, you can download it from the official [Doxygen website](http://www.doxygen.nl/download.html) or install it using your package manager.
-
-2. **Generate Documentation**: Run the following command in the terminal to generate the documentation:
-   ```bash
-   make doxygen
-   ```
-
-3. **View Documentation**: Once the documentation is generated, you can navigate to the output directory specified in the Doxyfile (typically `docs/html`) and open the `index.html` file in a web browser to view the generated documentation.
-
-If you encounter any issues during the Doxygen generation process, ensure that libcurl is installed on your system. You can install libcurl by running the appropriate package manager command for your operating system (e.g., `sudo apt-get install libcurl-dev` on Ubuntu).
 
 ### Usage
 
@@ -374,6 +360,21 @@ make && valgrind --leak-check=full \
 
 ```bash
 make && gdb --args ./psv -t 1 test.psv
+```
+
+### Doxygen
+
+```bash
+./bootstrap.sh
+cd docs
+doxygen
+
+# Open HTML
+xdg-open ./html/index.html
+
+# Generate PDF and Open
+make -C latex
+xdg-open ./latex/refman.pdf
 ```
 
 ## Design Considerations

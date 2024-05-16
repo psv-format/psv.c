@@ -11,21 +11,6 @@ AM_CFLAGS = -Wall -Werror -Wno-unused-function
 # --install: Automatically install missing macros into the system-wide directory.
 ACLOCAL_AMFLAGS = -I m4 --install
 
-# Add a target to generate Doxygen documentation
-doxygen:
-	doxygen Doxyfile
-
-# Define a phony target for cleaning Doxygen documentation
-clean-doxygen:
-	rm -rf docs
-
-# Open the generated documentation in the default web browser
-open_docs:
-	xdg-open docs/html/index.html
-
-# Add Doxygen to the list of targets to be built
-all-local: doxygen
-
 # Setup Python Enviroments
 .PHONY: update-cbor-tags
 update-cbor-tags:

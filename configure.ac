@@ -7,14 +7,22 @@ AC_CONFIG_AUX_DIR([build-aux]) # Put autotools auxiliary files into a separate d
 AC_CONFIG_MACRO_DIRS([m4]) # Put autotools M4 macros files into a separate dir to reduce clutter
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects]) # Initialize Automake with options
 
-# Check for libcurl to enable support for HTTP requests handling (for Doxygen documentation)
-# This is particularly useful for generating Doxygen documentation by fetching remote source files or documentation from online repositories.
-AC_CHECK_LIB([curl], [curl_easy_init], [
-	AC_DEFINE([HAVE_LIBCURL], [1], [Define if libcurl is available to enable support for HTTP requests handling])
-	LIBS="$LIBS -lcurl"
-], [
-	AC_MSG_ERROR([libcurl not found. Please install libcurl-dev package.])
-])
+# Doxygen Support (https://stackoverflow.com/questions/10682603/generating-and-installing-doxygen-documentation-with-autotools)
+AC_CHECK_PROGS([DOXYGEN], [doxygen])
+if test -z "$DOXYGEN"; then
+   AC_MSG_WARN([Doxygen not found - continue without Doxygen support])
+fi
+AC_CHECK_PROGS([DOT], [dot])
+if test -z "$DOT"; then
+   AC_MSG_ERROR([Doxygen needs dot, please install dot first])
+fi
+AC_CHECK_PROGS([PDFLATEX], [pdflatex])
+if test -z "$PDFLATEX"; then
+   AC_MSG_ERROR([Doxygen needs pdflatex program, it is part of TeX http://www.tug.org/texlive/acquire-netinstall.html])
+fi
+AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])
+AM_COND_IF([HAVE_DOXYGEN], [AC_CONFIG_FILES([docs/Doxyfile])])
+AM_COND_IF([HAVE_DOXYGEN], [AC_CONFIG_FILES([docs/Makefile])])
 
 # Enable all warnings and treat them as errors by default
 CFLAGS="$CFLAGS -Wall -Werror"
